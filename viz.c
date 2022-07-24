@@ -518,12 +518,16 @@ char get_key(long delay) {
             error_exit(errno);
         }
         char tmp[80];
-        sprintf(tmp, "%02X.%02X.%02X.%02X:%02X.%02X.%02X.%02X:%02X.%02X.%02X.%02X:%02X.%02X.%02X.%02X", buf[0], buf[1], buf[2], buf[3], buf[4], buf[5],
-                buf[6], buf[7], buf[8], buf[9], buf[10], buf[11],
-                buf[12], buf[13], buf[14], buf[15]);
+        int tmp_len =
+            sprintf(tmp,
+                    "%02X.%02X.%02X.%02X:%02X.%02X.%02X.%02X:%02X.%02X.%02X.%02X:%02X.%02X.%02X.%02X",
+                    buf[0], buf[1], buf[2], buf[3], buf[4], buf[5],
+                    buf[6], buf[7], buf[8], buf[9], buf[10], buf[11],
+                    buf[12], buf[13], buf[14], buf[15]);
         xyprint(0, 25, tmp);
         /* пишем в отдельный fifo */
-        write(fdfifo_ctrl, "tmp", 80);
+        write(fdfifo_ctrl, tmp, tmp_len);
+        write(fdfifo_ctrl, "\n", 1); /* need for line-buferization */
         fsync(fdfifo_ctrl);
     }
 
