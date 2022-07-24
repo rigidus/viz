@@ -1,0 +1,1087 @@
+#+STARTUP: showall indent hidestars
+#+TITLE: VIZ
+
+* Intro
+
+* Main
+
+#+NAME: main
+#+BEGIN_SRC c :tangle viz.c :noweb yes
+  /* INCLUDES */
+  <<incs>>
+
+  /* DEFINES */
+  <<defs>>
+
+  /* STRUCTURES */
+  <<structs>>
+
+  /* DECLARATIONS */
+  <<decls>>
+
+  /* GLOBALS */
+  <<globs>>
+
+  /* FUNCTIONS */
+  <<funcs>>
+
+  /* MAIN */
+  int main(int argc, char* argv[]) {
+      <<vars>>
+      <<init>>
+      <<loop>>
+  }
+#+END_SRC
+
+* Incs
+
+#+NAME: incs
+#+BEGIN_SRC c
+  #include <stdio.h>
+  #include <termios.h>
+  #include <unistd.h>
+  #include <fcntl.h>
+  #include <stdlib.h>
+  #include <string.h>
+  #include <ctype.h>
+  #include <time.h>
+  #include <sys/time.h>
+  #include <errno.h>
+  #include <sys/types.h>
+  #include <sys/stat.h>
+#+END_SRC
+
+* Defs
+
+#+NAME: defs
+#+BEGIN_SRC c
+  #define ESC 27
+
+  #define DELAY 1
+  #define DELAY_FACTOR 0.8
+
+  #define RED 1
+  #define GREEN 2
+  #define YELLOW 3
+  #define BLUE 4
+  #define FUCHSIA 5
+  #define CYAN 6
+  #define WHITE 7
+
+  #define PLAYFIELD_W 10
+  #define PLAYFIELD_H 20
+  #define PLAYFIELD_X 30
+  #define PLAYFIELD_Y 1
+  #define BORDER_COLOR YELLOW
+
+  #define SCORE_X 1
+  #define SCORE_Y 2
+  #define SCORE_COLOR GREEN
+
+  #define HELP_X 58
+  #define HELP_Y 1
+  #define HELP_COLOR CYAN
+
+  #define NEXT_X 14
+  #define NEXT_Y 11
+
+  #define GAMEOVER_X 1
+  #define GAMEOVER_Y (PLAYFIELD_H + 3)
+
+  #define LEVEL_UP 20
+
+  #define FILLED_CELL "[]"
+  #define NEXT_EMPTY_CELL "  "
+  #define PLAYFIELD_EMPTY_CELL " ."
+#+END_SRC
+
+* Structs
+
+#+NAME: structs
+#+BEGIN_SRC c
+  struct termios terminal_conf;
+  int use_color = 1;
+  long tetris_delay = DELAY * 1000000;
+
+  typedef struct {
+      int origin_x;
+      int origin_y;
+      int x;
+      int y;
+      int color;
+      int symmetry;
+      int orientation;
+      int *data;
+      char empty_cell[3];
+  } tetris_piece_s;
+#+END_SRC
+
+* Funcs
+
+** Background, foreground, colors, clear screen
+
+#+BEGIN_SRC c :noweb-ref decls
+  void set_fg(int color);
+  void set_bg(int color);
+  void reset_colors();
+  void clear_screen();
+#+END_SRC
+
+#+BEGIN_SRC c :noweb-ref funcs
+  void set_fg(int color) {
+      if (use_color) {
+          printf("\033[3%dm", color);
+      }
+  }
+  void set_bg(int color) {
+      if (use_color) {
+          printf("\033[4%dm", color);
+      }
+  }
+  void reset_colors() {
+      printf("\033[0m");
+  }
+  void clear_screen() {
+      printf("\033[2J");
+  }
+#+END_SRC
+
+** Printing at position
+
+#+BEGIN_SRC c :noweb-ref decls
+  void xyprint(int x, int y, char *s);
+  void set_bold();
+  void unset_bold();
+#+END_SRC
+
+#+BEGIN_SRC c :noweb-ref funcs
+  void xyprint(int x, int y, char *s) {
+      printf("\033[%d;%dH%s", y, x, s);
+  }
+  void set_bold() {
+      printf("\033[1m");
+  }
+  void unset_bold() {
+      printf("\033[0m");
+  }
+#+END_SRC
+
+** Exit functions
+
+#+BEGIN_SRC c :noweb-ref decls
+  void my_exit (int retcode);
+  void error_exit(int errsv);
+  void cmd_quit();
+#+END_SRC
+
+#+BEGIN_SRC c :noweb yes :noweb-ref funcs
+  void my_exit (int retcode) {
+      int flags = fcntl(STDOUT_FILENO, F_GETFL);
+      fcntl(STDOUT_FILENO, F_SETFL, flags & (~O_NONBLOCK));
+      tcsetattr(STDIN_FILENO, TCSANOW, &terminal_conf);
+      <<fin>>
+      exit(retcode);
+  }
+  void error_exit(int errsv) {
+      if (EINTR == errsv) {
+      } else if (EAGAIN == errsv) {
+      } else if (EWOULDBLOCK == errsv) {
+      } else {
+          /* close descriptor immediately */
+      }
+      xyprint(1,1, strerror(errsv));
+      my_exit(EXIT_FAILURE);
+  }
+  void cmd_quit() {
+      xyprint(GAMEOVER_X, GAMEOVER_Y, "Game over!");
+      xyprint(GAMEOVER_X, GAMEOVER_Y + 1, "");
+      my_exit(0);
+  }
+#+END_SRC
+
+** Game functions
+
+#+BEGIN_SRC c :noweb-ref decls
+  int *get_cells(tetris_piece_s piece, int *position);
+  void draw_piece(tetris_piece_s piece, int visible);
+  int position_ok(tetris_piece_s piece, int *playfield, int *position);
+  int move(tetris_piece_s *piece, int *playfield, int dx, int dy, int dz);
+  void flatten_piece(tetris_piece_s *piece, int *playfield);
+  void draw_playfield(int *playfield);
+  int line_complete(int line);
+  int process_complete_lines(int *playfield);
+  void update_score(int complete_lines);
+  void process_fallen_piece(tetris_piece_s *piece, int *playfield);
+  void cmd_right(tetris_piece_s *piece, int *playfield);
+  void cmd_left(tetris_piece_s *piece, int *playfield);
+  void cmd_rotate(tetris_piece_s *piece, int *playfield);
+  int cmd_down(tetris_piece_s *piece, int *playfield);
+  void cmd_drop(tetris_piece_s *piece, int *playfield);
+  void draw_help(int visible);
+  void draw_border();
+  tetris_piece_s get_next_piece(int visible);
+  void redraw_screen(int help_visible, tetris_piece_s next_piece, int next_visible, tetris_piece_s current_piece, int *playfield);
+  tetris_piece_s get_current_piece(tetris_piece_s next_piece, int *playfield);
+#+END_SRC
+
+#+BEGIN_SRC c :noweb-ref funcs
+  int *get_cells(tetris_piece_s piece, int *position) {
+      static int cells[8] = {};
+      int i = 0;
+      int data = *(piece.data + piece.orientation);
+      int x = piece.x;
+      int y = piece.y;
+
+      if (position) {
+          x = *position;
+          y = *(position + 1);
+          data = *(piece.data + *(position + 2));
+      }
+      for (i = 0; i < 4; i++) {
+          cells[2 * i] = x + ((data >> (4 * i)) & 3);
+          cells[2 * i + 1] = y + ((data >> (4 * i + 2)) & 3);
+      }
+      return cells;
+  }
+  void draw_piece(tetris_piece_s piece, int visible) {
+      int i = 0;
+      int *cells = get_cells(piece, NULL);
+      int x = 0;
+      int y = 0;
+
+      if (visible) {
+          set_fg(piece.color);
+          set_bg(piece.color);
+      }
+      for (i = 0; i < 4; i++) {
+          x = cells[2 * i] * 2 + piece.origin_x;
+          y = cells[2 * i + 1] + piece.origin_y;
+          xyprint(x, y, visible ? FILLED_CELL : piece.empty_cell);
+      }
+      if (visible) {
+          reset_colors();
+      }
+  }
+  int position_ok(tetris_piece_s piece, int *playfield, int *position) {
+      int i = 0;
+      int x = 0;
+      int y = 0;
+      int *cells = get_cells(piece, position);
+
+      for (i = 0; i < 4; i++) {
+          x = *(cells + 2 * i);
+          y = *(cells + 2 * i + 1);
+          if (y < 0 || y >= PLAYFIELD_H || x < 0 || x >= PLAYFIELD_W || ((*(playfield + y) >> (x * 3)) & 7) != 0) {
+              return 0;
+          }
+      }
+      return 1;
+  }
+  int move(tetris_piece_s *piece, int *playfield, int dx, int dy, int dz) {
+      int new_position[] = {piece->x + dx, piece->y + dy, (piece->orientation + dz) % piece->symmetry};
+
+      if (position_ok(*piece, playfield, new_position)) {
+          draw_piece(*piece, 0);
+          piece->x = new_position[0];
+          piece->y = new_position[1];
+          piece->orientation = new_position[2];
+          draw_piece(*piece, 1);
+          return 1;
+      }
+      return (dy == 0);
+  }
+  void flatten_piece(tetris_piece_s *piece, int *playfield) {
+      int i = 0;
+      int x = 0;
+      int y = 0;
+      int *cells = get_cells(*piece, NULL);
+
+      for (i = 0; i < 4; i++) {
+          x = *(cells + 2 * i);
+          y = *(cells + 2 * i + 1);
+          ,*(playfield + y) |= (piece->color << (x * 3));
+      }
+  }
+  void draw_playfield(int *playfield) {
+      int x = 0;
+      int y = 0;
+      int color = 0;
+
+      for (y = 0; y < PLAYFIELD_H; y++) {
+          xyprint(PLAYFIELD_X, PLAYFIELD_Y + y, "");
+          for (x = 0; x < PLAYFIELD_W; x++) {
+              color = (*(playfield + y) >> (x * 3)) & 7;
+              if (color) {
+                  set_bg(color);
+                  set_fg(color);
+                  printf(FILLED_CELL);
+                  reset_colors();
+              } else {
+                  printf(PLAYFIELD_EMPTY_CELL);
+              }
+          }
+      }
+  }
+  int line_complete(int line) {
+      int i = 0;
+
+      for (i = 0; i < PLAYFIELD_W; i++) {
+          if (((line >> (i * 3)) & 7) == 0) {
+              return 0;
+          }
+      }
+      return 1;
+  }
+  int process_complete_lines(int *playfield) {
+      int i = 0;
+      int j = 0;
+      int complete_lines = 0;
+
+      for (i = 0; i < PLAYFIELD_H; i++) {
+          if (line_complete(*(playfield + i))) {
+              for (j = i; j > 0; j--) {
+                  ,*(playfield + j) = *(playfield + j - 1);
+              }
+              ,*playfield = 0;
+              complete_lines++;
+          }
+      }
+      return complete_lines;
+  }
+  void update_score(int complete_lines) {
+      static int lines_completed = 0;
+      static int score = 0;
+      static int level = 1;
+      char buf[64];
+
+      lines_completed += complete_lines;
+      score += (complete_lines * complete_lines);
+      if (score > LEVEL_UP * level) {
+          tetris_delay *= DELAY_FACTOR;
+          level++;
+      }
+      set_bold();
+      set_fg(SCORE_COLOR);
+      sprintf(buf, "Lines completed: %d", lines_completed);
+      xyprint(SCORE_X, SCORE_Y,     buf);
+      sprintf(buf, "Level:           %d", level);
+      xyprint(SCORE_X, SCORE_Y + 1, buf);
+      sprintf(buf, "Score:           %d", score);
+      xyprint(SCORE_X, SCORE_Y + 2, buf);
+      reset_colors();
+  }
+  void process_fallen_piece(tetris_piece_s *piece, int *playfield) {
+      int complete_lines = 0;
+
+      flatten_piece(piece, playfield);
+      complete_lines = process_complete_lines(playfield);
+      if (complete_lines > 0) {
+          update_score(complete_lines);
+          draw_playfield(playfield);
+      }
+  }
+  void cmd_right(tetris_piece_s *piece, int *playfield) {
+      move(piece, playfield, 1, 0, 0);
+  }
+  void cmd_left(tetris_piece_s *piece, int *playfield) {
+      move(piece, playfield, -1, 0, 0);
+  }
+  void cmd_rotate(tetris_piece_s *piece, int *playfield) {
+      move(piece, playfield, 0, 0, 1);
+  }
+  int cmd_down(tetris_piece_s *piece, int *playfield) {
+      if (move(piece, playfield, 0, 1, 0) == 1) {
+          return 1;
+      }
+      process_fallen_piece(piece, playfield);
+      return 0;
+  }
+  void cmd_drop(tetris_piece_s *piece, int *playfield) {
+      while (cmd_down(piece, playfield)) {
+      }
+  }
+  void draw_help(int visible) {
+      char *text[] = {
+          "  Use cursor keys",
+          "       or",
+          "    s: rotate",
+          "a: left,  d: right",
+          "    space: drop",
+          "      q: quit",
+          "  c: toggle color",
+          "n: toggle show next",
+          "h: toggle this help"
+      };
+      char spaces[] = "                   ";
+      int i = 0;
+
+      if (visible) {
+          set_fg(HELP_COLOR);
+          set_bold();
+      }
+      for (i = 0; i < sizeof(text) / sizeof(text[0]); i++) {
+          xyprint(HELP_X, HELP_Y + i, visible ? text[i] : spaces);
+      }
+      if (visible) {
+          reset_colors();
+      }
+  }
+  void draw_border() {
+      int x1 = PLAYFIELD_X - 2;
+      int x2 = PLAYFIELD_X + PLAYFIELD_W * 2;
+      int i = 0;
+      int y = 0;
+
+      set_bold();
+      set_fg(BORDER_COLOR);
+      for (i = 0; i < PLAYFIELD_H + 1; i++) {
+          y = i + PLAYFIELD_Y;
+          xyprint(x1, y, "<|");
+          xyprint(x2, y, "|>");
+      }
+
+      y = PLAYFIELD_Y + PLAYFIELD_H;
+      for (i = 0; i < PLAYFIELD_W; i++) {
+          x1 = i * 2 + PLAYFIELD_X;
+          xyprint(x1, y, "==");
+          xyprint(x1, y + 1, "\\/");
+      }
+      reset_colors();
+  }
+  tetris_piece_s get_next_piece(int visible) {
+      static int square_data[] = { 1, 0x1256 };
+      static int line_data[] = { 2, 0x159d, 0x4567 };
+      static int s_data[] = { 2, 0x4512, 0x0459 };
+      static int z_data[] = { 2, 0x0156, 0x1548 };
+      static int l_data[] = { 4, 0x159a, 0x8456, 0x0159, 0x2654 };
+      static int r_data[] = { 4, 0x1598, 0x0456, 0x2159, 0xa654 };
+      static int t_data[] = { 4, 0x1456, 0x1596, 0x4569, 0x4159 };
+      static int *piece_data[] = {
+          square_data,
+          line_data,
+          s_data,
+          z_data,
+          l_data,
+          r_data,
+          t_data
+      };
+      static int piece_data_len = sizeof(piece_data) / sizeof(piece_data[0]);
+      static int colors[] = { RED, GREEN, YELLOW, BLUE, FUCHSIA, CYAN, WHITE};
+      int next_piece_index = random() % piece_data_len;
+      int *next_piece_data = piece_data[next_piece_index];
+      tetris_piece_s next_piece;
+
+      next_piece.origin_x = NEXT_X;
+      next_piece.origin_y = NEXT_Y;
+      next_piece.x = 0;
+      next_piece.y = 0;
+      next_piece.color = colors[random() % (sizeof(colors) / sizeof(colors[0]))];
+      next_piece.data = next_piece_data + 1;
+      next_piece.symmetry = *next_piece_data;
+      next_piece.orientation = random() % next_piece.symmetry;
+      strcpy(next_piece.empty_cell, NEXT_EMPTY_CELL);
+      draw_piece(next_piece, visible);
+      return next_piece;
+  }
+  void redraw_screen(int help_visible, tetris_piece_s next_piece, int next_visible, tetris_piece_s current_piece, int *playfield) {
+      clear_screen();
+      draw_help(help_visible);
+      update_score(0);
+      draw_border();
+      draw_playfield(playfield);
+      draw_piece(next_piece, next_visible);
+      draw_piece(current_piece, 1);
+  }
+  tetris_piece_s get_current_piece(tetris_piece_s next_piece, int *playfield) {
+      tetris_piece_s current_piece = next_piece;
+      current_piece.x = (PLAYFIELD_W - 4) / 2;
+      current_piece.y = 0;
+      current_piece.origin_x = PLAYFIELD_X;
+      current_piece.origin_y = PLAYFIELD_Y;
+      strcpy(current_piece.empty_cell, PLAYFIELD_EMPTY_CELL);
+      if (!position_ok(current_piece, playfield, NULL)) {
+          cmd_quit();
+      }
+      draw_piece(next_piece, 0);
+      draw_piece(current_piece, 1);
+      return current_piece;
+  }
+#+END_SRC
+
+** Get current microseconds
+
+#+BEGIN_SRC c :noweb-ref decls
+  long get_current_micros();
+#+END_SRC
+
+#+BEGIN_SRC c :noweb-ref funcs
+  long get_current_micros() {
+      struct timeval t;
+
+      gettimeofday(&t, NULL);
+      return t.tv_usec + t.tv_sec * 1000000;
+  }
+#+END_SRC
+
+** Get key
+
+#+BEGIN_SRC c :noweb-ref decls
+  char get_key(long delay);
+#+END_SRC
+
+#+BEGIN_SRC c :noweb yes :noweb-ref funcs
+  char get_key(long delay) {
+      static char buf[16];
+      static int buf_len = 0;
+      static int buf_pos = 0;
+
+      /* Если буфер не пуст - продолжаем возвращать из него, */
+      /* без ожидания, пока не опустошим */
+      if (buf_len > 0 && buf_pos < buf_len) {
+          return buf[buf_pos++];
+      }
+      /* здесь буфер пуст, поэтому обнуляем его к исходному */
+      buf_len = 0;
+      buf_pos = 0;
+
+      /* DELAY */
+      <<delay>>
+
+      /* вложеная функция чтения из пайпа */
+      void read_and_show_pipe () {
+          char pipe_buf[4096];
+          int pipe_buf_len = read(fdfifo, pipe_buf, 4096);
+          if (0 > pipe_buf_len) {
+              error_exit(errno);
+          }
+          char tmp[4096];
+          sprintf(tmp, "%s", pipe_buf);
+          xyprint(0, 29, tmp);
+      }
+
+      /* вложенная функция чтения из stdin */
+      void read_and_show_stdin () {
+          buf_len = read(STDIN_FILENO, buf, 16);
+          if (0 > buf_len) {
+              error_exit(errno);
+          }
+          char tmp[80];
+          sprintf(tmp, "%02X.%02X.%02X.%02X:%02X.%02X.%02X.%02X:%02X.%02X.%02X.%02X:%02X.%02X.%02X.%02X", buf[0], buf[1], buf[2], buf[3], buf[4], buf[5],
+                  buf[6], buf[7], buf[8], buf[9], buf[10], buf[11],
+                  buf[12], buf[13], buf[14], buf[15]);
+          xyprint(0, 25, tmp);
+          /* пишем в отдельный fifo */
+          write(fdfifo_ctrl, "tmp", 80);
+          fsync(fdfifo_ctrl);
+      }
+
+      if (stdin_flag) {
+          xyprint(SCORE_X, SCORE_Y + 3, "stdin_flag");
+      } else {
+          xyprint(SCORE_X, SCORE_Y + 3, "          ");
+      }
+
+      if (fifo_flag) {
+          xyprint(SCORE_X+12, SCORE_Y + 3, "fifo_flag");
+      } else {
+          xyprint(SCORE_X+12, SCORE_Y + 3, "         ");
+      }
+
+      if (!fifo_flag && !stdin_flag) {
+          /* таймаут, вернем ноль */
+          xyprint(SCORE_X, SCORE_Y + 4, "status: timeout");
+          return 0;
+      } else if (fifo_flag && !stdin_flag) {
+          /* что-то пришло в пайп, а stdin пустой */
+          /* прочтем и отобразим содержимое пайпа и вернем ноль */
+          xyprint(SCORE_X, SCORE_Y + 4, "status: pipe   ");
+          read_and_show_pipe();
+          return 0;
+      } else if (!fifo_flag && stdin_flag) {
+          /* что-то пришло в stdin, а пайп пустой */
+          /* прочтем в буфер и вернем первый символ */
+          xyprint(SCORE_X, SCORE_Y + 4, "status: stdin  ");
+          read_and_show_stdin();
+          return buf[buf_pos++];
+      } else if (fifo_flag && stdin_flag){
+          /* одновременно есть что-то и в stdin и в пайпе */
+          /* читаем и отображаем все и возвращаем первый символ */
+          xyprint(SCORE_X, SCORE_Y + 4, "status: both   ");
+          read_and_show_pipe();
+          read_and_show_stdin();
+          return buf[buf_pos++];
+      }
+
+      /* тут мы не должны оказаться ни при каких обстоятельствах */
+      xyprint(SCORE_X, SCORE_Y + 4, "status: pipets");
+      error_exit(errno);
+      return 0;
+  }
+#+END_SRC
+
+*** Delay at Select
+
+https://linux.die.net/man/3/fd_set
+
+select() позволяет программе отслеживать несколько файловых
+дескрипторов, ожидая, пока один или несколько из них станут "готовыми"
+для некоторого класса операции ввода-вывода (например,
+ввода). Файловый дескриптор считается готовым, если можно выполнить
+соответствующую операцию ввода-вывода (например, read) без блокировки.
+
+select() использует тайм-аут, который представляет собой struct
+timeval (с секундами и микросекундами).
+
+Наблюдаются три независимых набора файловых дескрипторов. Те, что
+перечислены в readfds, будут отслеживаться, чтобы увидеть, станут ли
+символы доступными для чтения. (точнее, чтобы увидеть, не блокируется
+ли чтение; в частности, файловый дескриптор также готов в конце
+файла), те, что в writefds, будут отслеживаться, чтобы посмотрите, не
+будет ли блокироваться запись, а те, что в excludefds, будут
+отслеживаться на предмет исключений. При выходе наборы изменяются на
+месте, чтобы указать, какой файл дескрипторы фактически изменили
+статус. Каждый из трех наборов файловых дескрипторов может быть указан
+как NULL, если ни один файловый дескриптор не должен отслеживаться в
+течение соответствующий класс событий.
+
+Для управления наборами предусмотрено четыре макроса. FD_ZERO()
+очищает набор. FD_SET() и FD_CLR() соответственно добавляют и удаляют
+заданный файл дескриптор из набора. FD_ISSET() проверяет, является ли
+файловый дескриптор частью набора; это полезно после возврата из
+select.
+
+nfds — это файловый дескриптор с наибольшим номером в любом из трех
+наборов плюс 1.
+
+Аргумент timeout задает минимальный интервал, в течение которого
+select() должен блокировать ожидание готовности файлового
+дескриптора. (Этот интервал будут округлены до степени детализации
+системных часов, а задержки планирования ядра означают, что интервал
+блокировки может быть превышен на небольшую величину.) Если оба поля
+структуры timeval равны нулю, то select() немедленно
+возвращается. (Это полезно для опроса). Если тайм-аут равен NULL (без
+тайм-аута), select() может блокироваться на неопределенный срок.
+
+В случае успеха select() и pselect() возвращают количество файловых
+дескрипторов, содержащихся в трех возвращенных наборах дескрипторов
+(то есть общее количество битов, установленных в readfds , writefds ,
+excludefds), которое может быть равно нулю, если тайм-аут истекает до
+того, как произойдет что-то интересное. В случае ошибки возвращается
+-1, и errno устанавливается соответствующим образом; наборы и время
+ожидания становятся неопределенными, поэтому не полагайтесь на их
+содержимое после ошибки.
+
+В Linux функция select() может сообщать дескриптор файла сокета как
+«готовый для чтения», в то время как последующее чтение
+блокируется. Это может например происходит, когда данные прибыли, но
+при проверке имеют неправильную контрольную сумму и
+отбрасываются. Могут быть и другие обстоятельства, при которых
+дескриптор файла ложно сообщает о готовности. Таким образом, может
+быть безопаснее использовать O_NONBLOCK для сокетов, которые не должны
+блокироваться.
+
+#+NAME: delay
+#+BEGIN_SRC c
+  struct timeval tv;
+  fd_set fs;
+
+  /* заполняем структуру ожидания */
+  tv.tv_sec = 0;
+  tv.tv_usec = 0;
+  if (delay > 0) {
+      tv.tv_sec = delay / 1000000;
+      tv.tv_usec = delay % 1000000;
+  }
+
+  /* ожидаем на select-e */
+  /* здесь мы неявно предполагаем, что fdfifo больше stdin */
+  FD_ZERO(&fs);                 /* clear a set */
+  FD_SET(STDIN_FILENO, &fs);    /* add stdin */
+  FD_SET(fdfifo, &fs);          /* add fdfifo */
+  int nfds = fdfifo + 1;        /* вместо fdfifo + 1 */
+  select(nfds, &fs, 0, 0, &tv);
+
+  /* тут мы оказываемся, если что-то пришло или таймаут */
+  int fifo_flag = FD_ISSET(fdfifo, &fs);
+  int stdin_flag = FD_ISSET(STDIN_FILENO, &fs);
+#+END_SRC
+
+* Vars
+
+#+BEGIN_SRC c :noweb yes :noweb-ref vars
+  char c = 0;
+  char key[] = {0, 0, 0};
+  tcflag_t c_lflag_orig = 0;
+  int help_visible = 1;
+  int next_visible = 1;
+  tetris_piece_s next_piece;
+  tetris_piece_s current_piece;
+  int playfield[PLAYFIELD_H] = {};
+  int i = 0;
+  int flags = fcntl(STDOUT_FILENO, F_GETFL);
+  long last_down_time = 0;
+  long now = 0;
+#+END_SRC
+
+* Init
+
+#+NAME: init
+#+BEGIN_SRC c :noweb yes
+  <<xterm>>
+  <<nonblock_stdout>>
+  <<init_cursor>>
+  <<init_mouse>>
+  <<init_pipe>>
+  /* init data */
+  next_piece = get_next_piece(next_visible);
+  current_piece = get_current_piece(next_piece, playfield);
+  next_piece = get_next_piece(next_visible);
+  /* redraw screen */
+  redraw_screen(help_visible, next_piece, next_visible, current_piece, playfield);
+  fflush(stdout);
+#+END_SRC
+
+** XTerm
+
+echo -n "\u001B[0c"позволяет проверить поддержку Sixel ,
+
+#+NAME: xterm
+#+BEGIN_SRC c
+  /* Run under XTerm only */
+  /* or sixel support : https://stackoverflow.com/questions/18379477/how-to-interpret-response-from-vt-100-vt-102-da-request/18380004#18380004 */
+  int   xterm = 0;
+  char* term = getenv("TERM");
+  if (term) {
+      if (0 == strcmp("dumb", term))  {
+          printf("Error: This program does not work under dumb terminal!\n");
+      } else if (0 == strcmp("xterm", term))  {
+          xterm = 1;
+      }
+  }
+  if (!xterm) {
+      printf("Error: This program run under XTerm only!\n");
+      return -1;
+  }
+#+END_SRC
+
+** Nonblock stdout
+
+#+NAME: nonblock_stdout
+#+BEGIN_SRC c
+  /* set non-block on stdout */
+  fcntl(STDOUT_FILENO, F_SETFL, flags | O_NONBLOCK);
+  /* read stdin configuration to termios struct */
+  tcgetattr(STDIN_FILENO, &terminal_conf);
+  /* save original local modes */
+  c_lflag_orig = terminal_conf.c_lflag;
+  /* canonical mode off, echo off */
+  terminal_conf.c_lflag &= ~(ICANON | ECHO);
+  /* set updated termios struct */
+  tcsetattr(STDIN_FILENO, TCSANOW, &terminal_conf);
+  /* copy original local modes field to the termios struct */
+  terminal_conf.c_lflag = c_lflag_orig;
+  /* */
+  last_down_time = get_current_micros();
+  srandom(time(NULL));
+  for (i = 0; i < PLAYFIELD_H; i++) {
+      playfield[i] = 0;
+  }
+#+END_SRC
+
+** Cursor control
+
+TODO: pixel mouse resolution
+https://stackoverflow.com/questions/44116977/get-mouse-position-in-pixels-using-escape-sequences
+
+xterm reports the mouse position with pixel resolution with the
+following escape sequences:
+
+    switch on pixel resolution: \e[2;1'z
+    report mouse position: \e['|
+
+Details are described at http://invisible-island.net/xterm/ctlseqs/ctlseqs.html
+
+Additional info: These xterm escape sequences (DECELR and DECRQLP) are
+also supported by Tera Term (https://osdn.net/projects/ttssh2/) and
+recent versions of mlterm (http://mlterm.sourceforge.net/). All three
+seem to support Sixel graphics, so together these features can be used
+to build rudimentary GUIs.
+
+https://stackoverflow.com/questions/5966903/how-to-get-mousemove-and-mouseclick-in-bash/5970472#5970472
+
+The xterm terminal emulator defines some control sequences to do mouse tracking, you can learn more about them in the section Mouse Tracking in the document ctlseqs for the xterm distribution. If you have xterm installed, you'll probably have a copy at /usr/share/doc/xterm/ctlseqs.txt.gz or a similar path.
+
+Most terminal emulators running on the X Window System (e.g: Konsole, gnome-terminal, eterm, ...) understand at least some of these control sequences. If you want to use them directly on one of Linux's virtual terminals, you'll probably have to run gpm(8).
+
+There are several control sequences for enabling and disabling mouse movement reporting:
+
+    9 -> X10 mouse reporting, for compatibility with X10's xterm, reports on button press.
+    1000 -> X11 mouse reporting, reports on button press and release.
+    1001 -> highlight reporting, useful for reporting mouse highlights.
+    1002 -> button movement reporting, reports movement when a button is pressed.
+    1003 -> all movement reporting, reports all movements.
+
+The control sequence is CSI ? number h for enabling and CSI ? number l for disabling. CSI is either ESC [ or character 0x9b. So, you could use them as follows:
+
+echo -e "\e[?1000h"
+
+Then, you'll get a bunch of characters on button press, see ctlseqs or console_codes(4) for details. Then, you can disable mouse tracking with:
+
+echo -e "\e[?1000l"
+
+Unfortunately, the previous mouse reporting modes can only handle coordinates up to 223 (255 - 32), or in some situations 95 (127 - 32). So there are some new switches to change the format in which mouse coordinates are reported:
+
+    1006 -> report back as decimal values (xterm, many other terminal emulators, but not urxvt)
+    1015 -> report back as decimal values (urxvt, xterm, other terminal emulators, some applications find it complex to parse)
+    1005 -> report back encoded as utf-8 (xterm, urxvt, broken in several ways)
+
+A good strategy for an application would be to enable mouse reporting, then (optionally request urxvt 1015 mode and then) request SGR 1006 mode. The application should handle both the new and legacy mouse reporting responses, to continue working on terminal emulators without support for the new modes.
+
+#+BEGIN_SRC c :noweb-ref globs
+  int  flag_cursor_control = 0;
+#+END_SRC
+
+#+BEGIN_SRC c :noweb-ref decls
+  void cursor_control_on();
+  void cursor_control_off();
+#+END_SRC
+
+#+BEGIN_SRC c :noweb-ref funcs
+  void cursor_control_on() {
+      printf("\033[?25l");
+      printf("\033[2;1'z"); /* switch on pixel resolution: \e[2;1'z */
+      flag_cursor_control = 1;
+  }
+  void cursor_control_off() {
+      printf("\033[?25h");
+      flag_cursor_control = 0;
+  }
+#+END_SRC
+
+#+NAME: init_cursor
+#+BEGIN_SRC c
+  /* init cursor */
+  cursor_control_on();
+#+END_SRC
+
+#+BEGIN_SRC c :noweb-ref fin
+  if (flag_cursor_control) {
+      cursor_control_off();
+  }
+#+END_SRC
+
+** Mouse control
+
+#+BEGIN_SRC c :noweb-ref globs
+  int  flag_mouse_control = 0;
+#+END_SRC
+
+#+BEGIN_SRC c :noweb-ref decls
+  void mouse_control_on();
+  void mouse_control_off();
+#+END_SRC
+
+#+BEGIN_SRC c :noweb-ref funcs
+  void mouse_control_on() {
+      printf("\033[?1000h");
+      flag_mouse_control = 1;
+  }
+  void mouse_control_off() {
+      printf("\033[?1000l");
+      flag_mouse_control = 0;
+  }
+#+END_SRC
+
+#+NAME: init_mouse
+#+BEGIN_SRC c
+  /* init mouse */
+  mouse_control_on();
+#+END_SRC
+
+#+BEGIN_SRC c :noweb-ref fin
+  if (flag_mouse_control) {
+      mouse_control_off();
+  }
+#+END_SRC
+
+** Init and fin pipe
+
+#+BEGIN_SRC c :noweb-ref globs
+  char myfifo[] = "test-pipe";
+  int  fdfifo = 0;
+  char myfifo_ctrl[] = "test-pipe-ctrl";
+  int  fdfifo_ctrl = 0;
+#+END_SRC
+
+#+NAME: init_pipe
+#+BEGIN_SRC c
+  /* remove if exist, create and open named non-block pipe */
+  if (access(myfifo, F_OK) == 0) {
+      remove(myfifo);
+  }
+  if (-1 == mkfifo(myfifo, 0777)) {
+      perror("Error while creating the pipe.\n");
+      my_exit(EXIT_FAILURE);
+  }
+  if (chmod (myfifo, 0777) < 0)
+  {
+      fprintf(stderr, "Error: chmod pipe - %d (%s)\n", errno, strerror(errno));
+      my_exit(EXIT_FAILURE);
+  }
+  fdfifo = open(myfifo, O_RDWR | O_NONBLOCK);
+  /* control fifo | TODO: O_READ & 0_WRITE */
+  if (access(myfifo_ctrl, F_OK) == 0) {
+      remove(myfifo_ctrl);
+  }
+  if (-1 == mkfifo(myfifo_ctrl, 0777)) {
+      perror("Error while creating the pipe control.\n");
+      my_exit(EXIT_FAILURE);
+  }
+  if (chmod (myfifo_ctrl, 0777) < 0)
+  {
+      fprintf(stderr, "Error: chmod pipe - %d (%s)\n", errno, strerror(errno));
+      my_exit(EXIT_FAILURE);
+  }
+  fdfifo_ctrl = open(myfifo_ctrl, O_RDWR);
+#+END_SRC
+
+#+BEGIN_SRC c :noweb-ref fin
+  if (fdfifo) {
+      close(fdfifo);
+  }
+    if (fdfifo_ctrl) {
+      close(fdfifo_ctrl);
+  }
+#+END_SRC
+
+* Loop
+
+#+NAME: loop
+#+BEGIN_SRC c
+  /* loop */
+  while(1) {
+      now = get_current_micros();
+      c = get_key(last_down_time + tetris_delay - now);
+      key[2] = key[1];
+      key[1] = key[0];
+      if (key[2] == ESC && key[1] == '[') {
+          key[0] = c;
+      } else {
+          key[0] = tolower(c);
+      }
+      switch(key[0]) {
+      case 3:
+      case 'q':
+          cmd_quit();
+          break;
+      case 'C':
+      case 'd':
+          cmd_right(&current_piece, playfield);
+          break;
+      case 'D':
+      case 'a':
+          cmd_left(&current_piece, playfield);
+          break;
+      case 'A':
+      case 's':
+          cmd_rotate(&current_piece, playfield);
+          break;
+      case 0:
+          last_down_time = get_current_micros();
+          if (!cmd_down(&current_piece, playfield)) {
+              current_piece = get_current_piece(next_piece, playfield);
+              next_piece = get_next_piece(next_visible);
+          }
+          break;
+      case ' ':
+          cmd_drop(&current_piece, playfield);
+          current_piece = get_current_piece(next_piece, playfield);
+          next_piece = get_next_piece(next_visible);
+          break;
+      case 'h':
+          help_visible ^= 1;
+          draw_help(help_visible);
+          break;
+      case 'n':
+          next_visible ^= 1;
+          draw_piece(next_piece, next_visible);
+          break;
+      case 'c':
+          use_color ^= 1;
+          redraw_screen(help_visible, next_piece, next_visible, current_piece, playfield);
+          break;
+      default:
+          break;
+      }
+      fflush(stdout);
+   }
+#+END_SRC
+
+* Send through pipe
+
+#+BEGIN_SRC lisp
+  (defun pipe-xy (x y msg)
+    (let ((my-pipe (open "test-pipe" :direction :output :if-does-not-exist :error)))
+      (format my-pipe "~A[~A;~AH~A"
+              (code-char 27) x y  msg)
+      (finish-output my-pipe)
+      (close my-pipe)))
+
+  (pipe-xy 0 0 "abc")
+
+  (defun pipe-get()
+    (let ((my-pipe (open "test-pipe" :direction :input :if-does-not-exist :error)))
+      (loop for ch = (read-char my-pipe)
+            do (progn
+                 (if (null ch)
+                     (break))
+                 ;; (if (or (not ch) (char= ch #\newline))
+                 ;;     (return-from read-until-newline r)
+                 ;;     (setf r (concatenate 'string r (format nil "~c" c))))
+                 (format t "[~A]" ch)
+                 ))))
+  (pipe-get)
+
+
+  (defun start-python ()
+    (let ((process
+            (sb-ext:run-program "/usr/bin/python3" nil
+                                :output :stream
+                                :input :stream
+                                :wait nil
+                                :pty t
+                                :error *standard-output*)))
+      process))
+
+  (defun read-until-newline (process)
+    (let ((r ""))
+      (loop for c = (read-char-no-hang (sb-ext:process-pty process))
+            do (progn
+                 (if (or (not c) (char= c #\newline))
+                     (return-from read-until-newline r)
+                     (setf r (concatenate 'string r (format nil "~c" c))))))))
+
+  (defun print-all-output (process &key (discard nil))
+    (sleep 0.1)
+    (loop
+      do (progn
+           (if (listen (sb-ext:process-pty process))
+               (if (not discard)
+                   (print (read-until-newline process))
+                   (read-until-newline process))
+               (return)))))
+
+  (defun send-to-python (process str)
+    (format (sb-ext:process-pty process) str)
+    (finish-output (sb-ext:process-pty process)))
+
+  (defun test-process-stream ()
+    (let* ((process (start-python)))
+      (print-all-output process :discard t) ;;discard banner message
+      (send-to-python process "X=[1,2,3,4,5]~%print(X[:2],X[2:])~%X~%")
+      (print-all-output process)
+      (sb-ext:process-close process)
+      ))
+
+  (test-process-stream)
+#+END_SRC
