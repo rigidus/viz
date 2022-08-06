@@ -1,9 +1,7 @@
 #+STARTUP: showall indent hidestars
 #+TITLE: VIZ
 
-* Intro
-
-sixel visualizer
+* Sixel Visualizer
 
 This program demonstrates the visualization capabilities through sixel graphics inside Xterm. It is controlled through fifos that are created: one is created to control the interface, and the other returns data about user actions: keystrokes and mouse click coordinates.
 
@@ -18,6 +16,46 @@ Thus, the goal of the entire project is to implement a work scheme similar to SW
 After compiling and running via “make run”, the compiled file ./a.out will be launched in an xterm window. When it is initialized, it switches the terminal to non-blocking mode and thanks to this it sends all received user actions to fifo test-pipe-control, and from fifo test-pipe it takes what needs to be shown on the screen.
 
 Thus, in the course of work, any script can control the visualization by reading and sending messages to fifo, and the corresponding script is given as an example.
+
+* Operations
+
+Output to the cursor position is done using escape sequences, so it's enough to open fifo, send a line with the escape sequence into it, and close fifo. For convenience, you can use the following function:
+
+#+BEGIN_SRC lisp
+  (defun pipe-xy (x y msg)
+    (let ((my-pipe (open "test-pipe"
+                         :direction :output :if-does-not-exist :error)))
+      (format my-pipe "~A[~A;~AH~A"
+              (code-char 27) x y  msg)
+      (finish-output my-pipe)
+      (close my-pipe)))
+
+  ;; (pipe-xy 0 0 "abc")
+#+END_SRC
+
+To get keystrokes and mouse clicks, you can use reading from fifo, but you need to start reading after starting the program, because when initializing the program, the program reopens the fifo. Thus, the sequence of operations is as follows:
+- make run
+- (pipe-get)
+- click and press keys
+
+#+BEGIN_SRC lisp
+  (defun pipe-get()
+    (let ((my-pipe (open "test-pipe-ctrl"
+                         :direction :input :if-does-not-exist :error)))
+      (loop for ch = (read-char my-pipe)
+            do (progn
+                 (if (null ch)
+                     (break))
+                 ;; (if (or (not ch) (char= ch #\newline))
+                 ;;     (return-from read-until-newline r)
+                 ;;     (setf r (concatenate 'string r (format nil "~c" c))))
+                 (format t "[~A]" ch)
+                 ))))
+
+  ;; (pipe-get)
+#+END_SRC
+
+When the program terminates, an error like “fifo closed unexpectedly” occurs, but it is easy to catch.
 
 * Makefile
 
@@ -1060,30 +1098,6 @@ A good strategy for an application would be to enable mouse reporting, then (opt
 * Send through pipe
 
 #+BEGIN_SRC lisp
-  (defun pipe-xy (x y msg)
-    (let ((my-pipe (open "test-pipe" :direction :output :if-does-not-exist :error)))
-      (format my-pipe "~A[~A;~AH~A"
-              (code-char 27) x y  msg)
-      (finish-output my-pipe)
-      (close my-pipe)))
-
-  (pipe-xy 0 0 "abc")
-
-  (defun pipe-get()
-    (let ((my-pipe (open "test-pipe" :direction :input :if-does-not-exist :error)))
-      (loop for ch = (read-char my-pipe)
-            do (progn
-                 (if (null ch)
-                     (break))
-                 ;; (if (or (not ch) (char= ch #\newline))
-                 ;;     (return-from read-until-newline r)
-                 ;;     (setf r (concatenate 'string r (format nil "~c" c))))
-                 (format t "[~A]" ch)
-                 ))))
-
-  (pipe-get)
-
-
   (defun start-python ()
     (let ((process
             (sb-ext:run-program "/usr/bin/python3" nil
