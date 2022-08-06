@@ -3,6 +3,19 @@
 
 * Intro
 
+* Makefile
+
+see ./Makefile
+
+#+BEGIN_SRC sh
+  SHELL = /bin/sh
+
+  all: compile
+
+  compile:
+      gcc viz.c
+#+END_SRC
+
 * Main
 
 #+NAME: main
