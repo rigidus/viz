@@ -3,6 +3,8 @@
 
 * Intro
 
+sixel visualizer
+
 * Makefile
 
 see ./Makefile
