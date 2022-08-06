@@ -5,6 +5,14 @@
 
 sixel visualizer
 
+This program demonstrates the visualization capabilities through sixel graphics inside Xterm. It is controlled through fifos that are created: one is created to control the interface, and the other returns data about user actions: keystrokes and mouse click coordinates.
+
+This approach can be used for interactive design of electronic circuits, software architecture management, graph editing and planning, including in no-code solutions.
+
+Since the terminal is part of the environment, it is possible to co-manage the rendering so that the terminal acts as an X-server, but without the need for an X-server itself.
+
+Thus, the goal of the entire project is to implement a work scheme similar to SWANK + SLIME, but with support for graphical input.
+
 * Makefile
 
 see ./Makefile
@@ -19,6 +27,10 @@ see ./Makefile
 #+END_SRC
 
 * Main
+
+This is frame for all program code.
+
+see [[*Init][Init]] and [[*Loop][Loop]]
 
 #+NAME: main
 #+BEGIN_SRC c :tangle viz.c :noweb yes
@@ -762,7 +774,7 @@ excludefds), которое может быть равно нулю, если т
 
 ** XTerm
 
-echo -n "\u001B[0c"позволяет проверить поддержку Sixel ,
+echo -n "\u001B[0c"позволяет проверить поддержку Sixel
 
 #+NAME: xterm
 #+BEGIN_SRC c
@@ -1059,6 +1071,7 @@ A good strategy for an application would be to enable mouse reporting, then (opt
                  ;;     (setf r (concatenate 'string r (format nil "~c" c))))
                  (format t "[~A]" ch)
                  ))))
+
   (pipe-get)
 
 
