@@ -13,6 +13,12 @@ Since the terminal is part of the environment, it is possible to co-manage the r
 
 Thus, the goal of the entire project is to implement a work scheme similar to SWANK + SLIME, but with support for graphical input.
 
+* How it works
+
+After compiling and running via “make run”, the compiled file ./a.out will be launched in an xterm window. When it is initialized, it switches the terminal to non-blocking mode and thanks to this it sends all received user actions to fifo test-pipe-control, and from fifo test-pipe it takes what needs to be shown on the screen.
+
+Thus, in the course of work, any script can control the visualization by reading and sending messages to fifo, and the corresponding script is given as an example.
+
 * Makefile
 
 see ./Makefile
@@ -24,6 +30,9 @@ see ./Makefile
 
   compile:
       gcc viz.c
+
+  run:
+      xterm -e ./a.out
 #+END_SRC
 
 * Main
