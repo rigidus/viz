@@ -22,13 +22,20 @@ Thus, in the course of work, any script can control the visualization by reading
 Output to the cursor position is done using escape sequences, so it's enough to open fifo, send a line with the escape sequence into it, and close fifo. For convenience, you can use the following function:
 
 #+BEGIN_SRC lisp
+  (defmacro with-pipe (pipe-var &body body)
+    `(let ((,pipe-var (open "test-pipe"
+                          :direction :output :if-does-not-exist :error)))
+       (prog1 (progn ,@body)
+         (finish-output ,pipe-var)
+         (close ,pipe-var))))
+
+  ;; (macroexpand-1 '(with-pipe my-pipe
+  ;;                  (some1) (some2)))
+
   (defun pipe-xy (x y msg)
-    (let ((my-pipe (open "test-pipe"
-                         :direction :output :if-does-not-exist :error)))
+    (with-pipe my-pipe
       (format my-pipe "~A[~A;~AH~A"
-              (code-char 27) x y  msg)
-      (finish-output my-pipe)
-      (close my-pipe)))
+              (code-char 27) x y  msg)))
 
   ;; (pipe-xy 0 0 "abc")
 #+END_SRC
@@ -49,13 +56,15 @@ To get keystrokes and mouse clicks, you can use reading from fifo, but you need 
                  ;; (if (or (not ch) (char= ch #\newline))
                  ;;     (return-from read-until-newline r)
                  ;;     (setf r (concatenate 'string r (format nil "~c" c))))
-                 (format t "[~A]" ch)
+                 (format t "~A" ch)
                  ))))
 
   ;; (pipe-get)
 #+END_SRC
 
 When the program terminates, an error like “fifo closed unexpectedly” occurs, but it is easy to catch.
+** Set foreground color
+
 
 * Makefile
 
