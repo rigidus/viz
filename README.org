@@ -35,7 +35,7 @@ Output to the cursor position is done using escape sequences, so it's enough to 
   (defun pipe-xy (x y msg)
     (with-pipe my-pipe
       (format my-pipe "~A[~A;~AH~A"
-              (code-char 27) x y  msg)))
+              (code-char 27) x y msg)))
 
   ;; (pipe-xy 0 0 "abc")
 #+END_SRC
@@ -63,9 +63,17 @@ To get keystrokes and mouse clicks, you can use reading from fifo, but you need 
 #+END_SRC
 
 When the program terminates, an error like “fifo closed unexpectedly” occurs, but it is easy to catch.
+
 ** Set foreground color
 
+#+BEGIN_SRC lisp
+  (defun pipe-xy-color (color x y msg)
+    (with-pipe my-pipe
+      (format my-pipe "~A[3~Am"     (code-char 27) color)
+      (format my-pipe "~A[~A;~AH~A" (code-char 27) x y msg)))
 
+  ;; (pipe-xy-clr 4 10 10 "abc2")
+#+END_SRC
 * Makefile
 
 see ./Makefile
