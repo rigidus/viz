@@ -96,83 +96,106 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
   (defconstant +CYAN+ 6)
   (defconstant +WHITE+ 7)
 
-  (defstruct tetris-piece-s
-    (origin_x 0 :type '(unsigned-byte 16))
-    (origin_y 0 :type '(unsigned-byte 16))
-    (x 0 :type '(unsigned-byte 16))
-    (y 0 :type '(unsigned-byte 16))
-    (color 0 :type '(unsigned-byte 16))
-    (symmetry 0 :type '(unsigned-byte 16))
-    (orientation 0 :type '(unsigned-byte 16))
-    ;; (data) ;; pointer
-    ;; (empty_cell) ;; 3 chars
+  (defconstant +NEXT-X+ 14)
+  (defconstant +NEXT-Y+ 11)
+
+  (defconstant +NEXT-EMPTY-CELL+ "  ")
+
+  (defconstant +FILLED_CELL+ "[]")
+
+
+  (defstruct tetpi
+    (origin-x 0 :type fixnum)
+    (origin-y 0 :type fixnum)
+    (x 0 :type fixnum)
+    (y 0 :type fixnum)
+    (color 0 :type fixnum)
+    (symmetry 0 :type fixnum)
+    (orientation 0 :type fixnum)
+    (data) ;; pointer
+    (empty-cell) ;; 3 chars
     )
 
-  (defun array-to-list (array)
-    (let* ((dimensions (array-dimensions array))
-           (depth      (1- (length dimensions)))
-           (indices    (make-list (1+ depth) :initial-element 0)))
-      (labels ((recurse (n)
-                 (loop for j below (nth n dimensions)
-                       do (setf (nth n indices) j)
-                       collect (if (= n depth)
-                                   (apply #'aref array indices)
-                                   (recurse (1+ n))))))
-        (recurse 0))))
+  (defun get-cells (piece position)
+    (let ((cells (make-array 8 :element-type 'fixnum))
+          (data (aref (tetpi-data piece) (tetpi-orientation piece)))
+          (x (tetpi-x piece))
+          (y (tetpi-y piece)))
+      (when position
+        ;; (setf x *position)
+        ;; (setf y *(+ 1 position))
+        ;; (setf data _*(+ (tetpi-data piece)
+        ;;                 _*(+ 2 position)))
+        (error 'not-implemented)
+        )
+      (loop for idx from 0 below 4 do
+        (setf (aref cells (* 2 idx))
+              (+ x
+                 (logand 3
+                         (ash data (- (* 4 idx))))))
+        (setf (aref cells (+ 1 (* 2 idx)))
+              (+ y (logand 3
+                           (ash data (- (+ 2 (* 4 idx))))))))
+      cells))
+
+  (defun draw-piece (piece visible)
+    (let ((cells (get-cells piece nil))
+          (x 0)
+          (y 0))
+      (when visible
+        (set-fg (tetpi-color piece))
+        (set-bg (tetpi-color piece))))
+        (loop for idx from 0 below 4 do
+          (setf x
+                (+ (* 2 (aref cells (* 2 idx)))
+                   (tetpi-origin-x piece)))
+          (setf y
+                (+ (aref cells (+ 1 (* 2 idx)))
+                   (tetpi-origin-y piece)))
+          (if visible
+              (xy-print x y +FILLED_CELL+)
+              (xy-print x y (tetpi-empty-cell piece)))
+          (when visible
+            (reset-colors))))
 
   (defun get-next-piece (visible)
-    (let* ((dims '(7 4))
-           (piece-data
-             (make-array
-              dims
-              :element-type 'fixnum
-              :initial-contents '((#x1256 0 0 0)                    ;; square
-                                  (#x159d #x4567 0 0)               ;; line
-                                  (#x4512 #x0459 0 0)               ;; s
-                                  (#x0156 #x1548 0 0)               ;; z
-                                  (#x159a #x8456 #x0159 #x2654)     ;; l
-                                  (#x1598 #x0456 #x2159 #xa654)     ;; r
-                                  (#x1456 #x1596 #x4569 #x4159))))  ;; t
+    (let* ((dims '(7 5))
+           (piece-data (make-array dims
+              ;; :element-type 'fixnum
+              :initial-contents '((1 #x1256 0 0 0)                    ;; square
+                                  (2 #x159d #x4567 0 0)               ;; line
+                                  (2 #x4512 #x0459 0 0)               ;; s
+                                  (2 #x0156 #x1548 0 0)               ;; z
+                                  (4 #x159a #x8456 #x0159 #x2654)     ;; l
+                                  (4 #x1598 #x0456 #x2159 #xa654)     ;; r
+                                  (4 #x1456 #x1596 #x4569 #x4159))))  ;; t
            (piece-data-len (array-dimension piece-data 0))
            (colors (make-array 7 :initial-contents
                                `(,+RED+ ,+GREEN+ ,+YELLOW+ ,+BLUE+
                                         ,+FUCHSIA+ ,+CYAN+ ,+WHITE+)))
-           (next_piece_index (random piece-data-len))
-           (next_piece_data
-             (make-array 4
+           (next-piece-index (random piece-data-len))
+           (next-piece-data
+             (make-array (cadr dims)
                          :displaced-to piece-data
-                         :element-type 'fixnum
-                         :displaced-index-offset (* (cadr dims) next_piece_index)))
-           )
-      (declare (type (array fixnum *) piece-data))
-      (values
-       next_piece_index
-       next_piece_data)
-      ))
+                         ;; :element-type '(fixnum)
+                         :displaced-index-offset (* (cadr dims) next-piece-index)))
+           (next_piece (make-tetpi
+                        :origin-x +NEXT-X+
+                        :origin-y +NEXT-Y+
+                        :x 0
+                        :y 0
+                        :color (aref colors (random (array-dimension colors 0)))
+                        :data next-piece-data
+                        :symmetry (+ 1 (aref next-piece-data 0))
+                        :orientation (random (+ 1 (aref next-piece-data 0)))
+                        :empty-cell +NEXT-EMPTY-CELL+)))
+      ;; (declare (type (array fixnum *) piece-data))
+      ;; (draw-piece next_piece visible)
+      next_piece))
 
-  ;; debug
-  (multiple-value-bind (num cnt)
-      (get-next-piece 1)
-    (format nil "~A | ~{~X ~}" num (array-to-list cnt)))
+  (get-next-piece 1)
 
 
-
-  ;; (defun draw-piece (piece visible)
-  ;;   (let ((i 0)
-  ;;         (cells (get-cells piece nil))
-  ;;         (x 0)
-  ;;         (y 0))
-  ;;     (if visible
-  ;;         (progn
-  ;;           (set-fg (getf piece :color))
-  ;;           (set-bg (getf piece :color))))
-  ;;     (loop for idx from 0 to 3 :do
-  ;;           x = cells[2 * i] * 2 + piece.origin_x;
-  ;;           y = cells[2 * i + 1] + piece.origin_y;
-  ;;           xyprint(x, y, visible ? FILLED_CELL : piece.empty_cell);
-  ;;           )
-  ;;     (if visible
-  ;;         (reset_colors))))
 #+END_SRC
 
 * Makefile
