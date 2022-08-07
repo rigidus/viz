@@ -58,22 +58,123 @@ To get keystrokes and mouse clicks, you can use reading from fifo, but you need 
                  ;;     (setf r (concatenate 'string r (format nil "~c" c))))
                  (format t "~A" ch)
                  ))))
-
   ;; (pipe-get)
 #+END_SRC
 
 When the program terminates, an error like “fifo closed unexpectedly” occurs, but it is easy to catch.
 
-** Set foreground color
+* Screen functions
 
 #+BEGIN_SRC lisp
-  (defun pipe-xy-color (color x y msg)
-    (with-pipe my-pipe
-      (format my-pipe "~A[3~Am"     (code-char 27) color)
-      (format my-pipe "~A[~A;~AH~A" (code-char 27) x y msg)))
+  (defun pipe-cls ()
+    (with-pipe mp
+      (format mp "~A[2J" (code-char 27))))
+  ;; (pipe-cls)
 
-  ;; (pipe-xy-clr 4 10 10 "abc2")
+  (defun pipe-msg (fg bg x y msg)
+    (with-pipe mp
+      (format mp "~A[3~Am"    (code-char 27) fg)    ;; foreground
+      (format mp "~A[4~Am"    (code-char 27) bg)    ;; background
+      (format mp "~A[~A;~AH"  (code-char 27) x y)   ;; coords
+      (format mp "~A"         msg)                  ;; msg
+      (format mp "~A[0~Am"    (code-char 27) bg)))  ;; reset colors
+  ;; (pipe-msg 3 4 10 10 "abc")
+
+
 #+END_SRC
+
+[TODO:gmm] : bold, italic, etc..
+
+* Draw functions
+
+#+BEGIN_SRC lisp
+  (defconstant +RED+ 1)
+  (defconstant +GREEN+ 2)
+  (defconstant +YELLOW+ 3)
+  (defconstant +BLUE+ 4)
+  (defconstant +FUCHSIA+ 5)
+  (defconstant +CYAN+ 6)
+  (defconstant +WHITE+ 7)
+
+  (defstruct tetris-piece-s
+    (origin_x 0 :type '(unsigned-byte 16))
+    (origin_y 0 :type '(unsigned-byte 16))
+    (x 0 :type '(unsigned-byte 16))
+    (y 0 :type '(unsigned-byte 16))
+    (color 0 :type '(unsigned-byte 16))
+    (symmetry 0 :type '(unsigned-byte 16))
+    (orientation 0 :type '(unsigned-byte 16))
+    ;; (data) ;; pointer
+    ;; (empty_cell) ;; 3 chars
+    )
+
+  (defun array-to-list (array)
+    (let* ((dimensions (array-dimensions array))
+           (depth      (1- (length dimensions)))
+           (indices    (make-list (1+ depth) :initial-element 0)))
+      (labels ((recurse (n)
+                 (loop for j below (nth n dimensions)
+                       do (setf (nth n indices) j)
+                       collect (if (= n depth)
+                                   (apply #'aref array indices)
+                                   (recurse (1+ n))))))
+        (recurse 0))))
+
+  (defun get-next-piece (visible)
+    (let* ((dims '(7 4))
+           (piece-data
+             (make-array
+              dims
+              :element-type 'fixnum
+              :initial-contents '((#x1256 0 0 0)                    ;; square
+                                  (#x159d #x4567 0 0)               ;; line
+                                  (#x4512 #x0459 0 0)               ;; s
+                                  (#x0156 #x1548 0 0)               ;; z
+                                  (#x159a #x8456 #x0159 #x2654)     ;; l
+                                  (#x1598 #x0456 #x2159 #xa654)     ;; r
+                                  (#x1456 #x1596 #x4569 #x4159))))  ;; t
+           (piece-data-len (array-dimension piece-data 0))
+           (colors (make-array 7 :initial-contents
+                               `(,+RED+ ,+GREEN+ ,+YELLOW+ ,+BLUE+
+                                        ,+FUCHSIA+ ,+CYAN+ ,+WHITE+)))
+           (next_piece_index (random piece-data-len))
+           (next_piece_data
+             (make-array 4
+                         :displaced-to piece-data
+                         :element-type 'fixnum
+                         :displaced-index-offset (* (cadr dims) next_piece_index)))
+           )
+      (declare (type (array fixnum *) piece-data))
+      (values
+       next_piece_index
+       next_piece_data)
+      ))
+
+  ;; debug
+  (multiple-value-bind (num cnt)
+      (get-next-piece 1)
+    (format nil "~A | ~{~X ~}" num (array-to-list cnt)))
+
+
+
+  ;; (defun draw-piece (piece visible)
+  ;;   (let ((i 0)
+  ;;         (cells (get-cells piece nil))
+  ;;         (x 0)
+  ;;         (y 0))
+  ;;     (if visible
+  ;;         (progn
+  ;;           (set-fg (getf piece :color))
+  ;;           (set-bg (getf piece :color))))
+  ;;     (loop for idx from 0 to 3 :do
+  ;;           x = cells[2 * i] * 2 + piece.origin_x;
+  ;;           y = cells[2 * i + 1] + piece.origin_y;
+  ;;           xyprint(x, y, visible ? FILLED_CELL : piece.empty_cell);
+  ;;           )
+  ;;     (if visible
+  ;;         (reset_colors))))
+#+END_SRC
+
 * Makefile
 
 see ./Makefile
