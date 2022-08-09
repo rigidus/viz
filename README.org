@@ -106,41 +106,6 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
 
   (defconstant +FILLED_CELL+ "[]")
 
-
-  (defstruct tetpi
-    (origin-x 0 :type fixnum)
-    (origin-y 0 :type fixnum)
-    (x 0 :type fixnum)
-    (y 0 :type fixnum)
-    (color 0 :type fixnum)
-    (symmetry 0 :type fixnum)
-    (orientation 0 :type fixnum)
-    (data) ;; pointer
-    (empty-cell) ;; 3 chars
-    )
-
-  (defun get-cells (piece position)
-    (let ((cells (make-array 8 :element-type 'fixnum))
-          (data (aref (tetpi-data piece) (tetpi-orientation piece)))
-          (x (tetpi-x piece))
-          (y (tetpi-y piece)))
-      (when position
-        ;; (setf x *position)
-        ;; (setf y *(+ 1 position))
-        ;; (setf data _*(+ (tetpi-data piece)
-        ;;                 _*(+ 2 position)))
-        (error 'not-implemented)
-        )
-      (loop for idx from 0 below 4 do
-        (setf (aref cells (* 2 idx))
-              (+ x
-                 (logand 3
-                         (ash data (- (* 4 idx))))))
-        (setf (aref cells (+ 1 (* 2 idx)))
-              (+ y (logand 3
-                           (ash data (- (+ 2 (* 4 idx))))))))
-      cells))
-
   (defparameter *sep* "" ;; #\Newline
     )
   (defparameter *vis* t)
@@ -176,87 +141,96 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
 
   (defun fil-show (coords)
     (loop for (x y) in coords do
-      (xyprint x y (xyprint x y +FILLED_CELL+))))
+      (xyprint x y +FILLED_CELL+)))
 
-  (net-show '((18  12)
-               (16 12)
-               (14 12)
-               (14 11)))
+  (defun cells (data)
+    "for every digit in data (like #x1256) x=((cell & 3)) y=((cell >> 2))"
+    (loop for idx from 0 below 4
+          collect (let* ((x-shift (- (* 4 idx)))
+                         (x-seg (logand 3 (ash data x-shift)))
+                         (y-shift (- (+ 2 (* 4 idx))))
+                         (y-seg (logand 3 (ash data y-shift))))
+                    (list x-seg y-seg))))
+  ;; (cells #x1256)
 
-  (fil-show '((18  12)
-               (16 12)
-               (14 12)
-               (14 11)))
+  (defun offset (x y data)
+    (loop for (xx yy) in data :collect (list (+ x xx) (+ y yy))))
+  ;; (offset 10 20 (cells #x1256))
 
-  (defun draw-piece (piece show-fn)
-    (let* ((cells (get-cells piece nil))
-           (points (loop for idx from 0 below 4
-                         collect (list (+ (* 2 (aref cells (* 2 idx)))
-                                          (tetpi-origin-x piece))
-                                       (+ (aref cells (+ 1 (* 2 idx)))
-                                          (tetpi-origin-y piece))))))
-      (set-fg (tetpi-color piece))
-      (set-bg (tetpi-color piece))
-      (funcall show-fn points)
-      (reset-colors)))
+  ;; this array holds all possible pieces that can be used in the game
+  ;; each piece consists of 4 cells numbered from 0x0 to 0xf:
+  ;; 0123
+  ;; 4567
+  ;; 89ab
+  ;; cdef
+  ;; each string is sequence of cells for different orientations
+  ;; depending on piece symmetry there can be 1, 2 or 4 orientations
+  ;; relative coordinates are calculated as follows:
+  ;; x=((cell & 3)) y=((cell >> 2))
+  (defconstant +PIECES+ '((1 #x1256 0 0 0)
+                          (2 #x159d #x4567 0 0)
+                          (2 #x4512 #x0459 0 0)
+                          (2 #x0156 #x1548 0 0)
+                          (4 #x159a #x8456 #x0159 #x2654)
+                          (4 #x1598 #x0456 #x2159 #xa654)
+                          (4 #x1456 #x1596 #x4569 #x4159)))
 
-  (get-cells (get-next-piece 1) nil)
-  (draw-piece (get-next-piece 1) #'net-show)
+  (defparameter *pieces-dim* `(,(length +PIESES+) ,(length (car +PIESES+))))
 
+  (defparameter *pieses*
+    (make-array *pieces-dim*
+                :element-type 'fixnum
+                :initial-contents +PIESES+))
 
-  (with-pipe my-pipe
-    (format my-pipe "~A"
-            (with-output-to-string (*standard-output*)
-              (draw-piece (get-next-piece 1) #'fil-show))))
+  (defparameter *colors*
+    (make-array 7 :initial-contents `(,+RED+ ,+GREEN+ ,+YELLOW+ ,+BLUE+
+                                             ,+FUCHSIA+ ,+CYAN+ ,+WHITE+)))
+  (defstruct tetpi
+    (origin-x 0 :type fixnum)
+    (origin-y 0 :type fixnum)
+    (x 0 :type fixnum)
+    (y 0 :type fixnum)
+    (color 0 :type fixnum)
+    (symmetry 0 :type fixnum)
+    (orientation 0 :type fixnum)
+    (data) ;; pointer
+    (empty-cell)) ;; 3 chars
 
-
-  (defun get-next-piece (visible)
-    (let* ((dims '(7 5))
-           (piece-data (make-array dims
-              ;; :element-type 'fixnum
-              :initial-contents
-              ;; this array holds all possible pieces that can be used in the game
-              ;; each piece consists of 4 cells numbered from 0x0 to 0xf:
-              ;; 0123
-              ;; 4567
-              ;; 89ab
-              ;; cdef
-              ;; each string is sequence of cells for different orientations
-              ;; depending on piece symmetry there can be 1, 2 or 4 orientations
-              ;; relative coordinates are calculated as follows:
-              ;; x=((cell & 3)) y=((cell >> 2))
-              '((1 #x1256 0 0 0)                    ;; square
-                (2 #x159d #x4567 0 0)               ;; line
-                (2 #x4512 #x0459 0 0)               ;; s
-                (2 #x0156 #x1548 0 0)               ;; z
-                (4 #x159a #x8456 #x0159 #x2654)     ;; l
-                (4 #x1598 #x0456 #x2159 #xa654)     ;; r
-                (4 #x1456 #x1596 #x4569 #x4159))))  ;; t
-           (piece-data-len (array-dimension piece-data 0))
-           (colors (make-array 7 :initial-contents
-                               `(,+RED+ ,+GREEN+ ,+YELLOW+ ,+BLUE+
-                                        ,+FUCHSIA+ ,+CYAN+ ,+WHITE+)))
-           (next-piece-index (random piece-data-len))
-           (next-piece-data
-             (make-array (cadr dims)
-                         :displaced-to piece-data
-                         ;; :element-type '(fixnum)
-                         :displaced-index-offset (* (cadr dims) next-piece-index)))
+  (defun get-next-piece ()
+    (let* ((next-piece-data
+             (make-array (cadr *pieces-dim*)
+                         :displaced-to *pieses*
+                         :element-type 'fixnum
+                         :displaced-index-offset (* (cadr *pieces-dim*)
+                                                    (random (car *pieces-dim*)))))
            (next_piece (make-tetpi
                         :origin-x +NEXT-X+
                         :origin-y +NEXT-Y+
                         :x 0
                         :y 0
-                        :color (aref colors (random (array-dimension colors 0)))
+                        :color (aref *colors* (random (length *colors*)))
                         :data next-piece-data
                         :symmetry (+ 1 (aref next-piece-data 0))
                         :orientation (random (+ 1 (aref next-piece-data 0)))
                         :empty-cell +NEXT-EMPTY-CELL+)))
-      ;; (declare (type (array fixnum *) piece-data))
-      ;; (draw-piece next_piece visible)
+      ;; (draw-piece next_piece)
       next_piece))
+  (get-next-piece)
 
-  ;; (get-next-piece 1)
+  (defun draw-piece (piece)
+    ;; (set-fg (tetpi-color piece))
+    ;; (set-bg (tetpi-color piece))
+    (net-show (cells (aref (tetpi-data piece) 2)))
+    ;; (reset-colors)
+    )
+
+  ;; start
+  (draw-piece (get-next-piece))
+
+  (with-pipe my-pipe
+    (format my-pipe "~A"
+            (with-output-to-string (*standard-output*)
+              (draw-piece (get-next-piece 1) #'fil-show))))
 #+END_SRC
 
 * Makefile
