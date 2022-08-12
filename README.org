@@ -58,6 +58,7 @@ To get keystrokes and mouse clicks, you can use reading from fifo, but you need 
                  ;;     (setf r (concatenate 'string r (format nil "~c" c))))
                  (format t "~A" ch)
                  ))))
+
   ;; (pipe-get)
 #+END_SRC
 
@@ -103,12 +104,10 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
   (defconstant +NEXT-Y+ 11)
 
   (defconstant +NEXT-EMPTY-CELL+ "  ")
-
   (defconstant +FILLED_CELL+ "[]")
 
-  (defparameter *sep* "" ;; #\Newline
+  (defparameter *sep* #\Newline
     )
-  (defparameter *vis* t)
 
   (defun xyprint (x y msg)
     (format t "~A[~A;~AH~A~A" (code-char 27) x y msg *sep*))
@@ -126,6 +125,7 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
     (format t "~A[2J~A" (code-char 27) *sep*))
 
   (defun net-show (coords)
+    (format t "coords: ~A~%" coords)
     (let ((max-x (apply #'max (mapcar #'car coords)))
           (max-y (apply #'max (mapcar #'cadr coords))))
       (loop for yy from 0 below (+ 1 max-y) :do
@@ -139,7 +139,7 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
                   (format t "."))))
           (format t "~%"))))
 
-  (defun fil-show (coords)
+  (defun fill-show (coords)
     (loop for (x y) in coords do
       (xyprint x y +FILLED_CELL+)))
 
@@ -175,16 +175,17 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
                           (4 #x1598 #x0456 #x2159 #xa654)
                           (4 #x1456 #x1596 #x4569 #x4159)))
 
-  (defparameter *pieces-dim* `(,(length +PIESES+) ,(length (car +PIESES+))))
+  (defparameter *pieces-dim* `(,(length +PIECES+) ,(length (car +PIECES+))))
 
-  (defparameter *pieses*
+  (defparameter *pieces*
     (make-array *pieces-dim*
                 :element-type 'fixnum
-                :initial-contents +PIESES+))
+                :initial-contents +PIECES+))
 
   (defparameter *colors*
     (make-array 7 :initial-contents `(,+RED+ ,+GREEN+ ,+YELLOW+ ,+BLUE+
                                              ,+FUCHSIA+ ,+CYAN+ ,+WHITE+)))
+
   (defstruct tetpi
     (origin-x 0 :type fixnum)
     (origin-y 0 :type fixnum)
@@ -193,44 +194,76 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
     (color 0 :type fixnum)
     (symmetry 0 :type fixnum)
     (orientation 0 :type fixnum)
-    (data) ;; pointer
-    (empty-cell)) ;; 3 chars
+    (data)
+    (empty-cell))
 
-  (defun get-next-piece ()
+  (defun get-piece (&key color-idx piece-idx)
     (let* ((next-piece-data
              (make-array (cadr *pieces-dim*)
-                         :displaced-to *pieses*
+                         :displaced-to *pieces*
                          :element-type 'fixnum
                          :displaced-index-offset (* (cadr *pieces-dim*)
-                                                    (random (car *pieces-dim*)))))
+                                                    piece-idx)))
            (next_piece (make-tetpi
                         :origin-x +NEXT-X+
                         :origin-y +NEXT-Y+
                         :x 0
                         :y 0
-                        :color (aref *colors* (random (length *colors*)))
+                        :color (aref *colors* color-idx)
                         :data next-piece-data
-                        :symmetry (+ 1 (aref next-piece-data 0))
-                        :orientation (random (+ 1 (aref next-piece-data 0)))
+                        :symmetry (aref next-piece-data 0)
+                        ;; :orientation 0 ;; stub
                         :empty-cell +NEXT-EMPTY-CELL+)))
-      ;; (draw-piece next_piece)
       next_piece))
-  (get-next-piece)
 
-  (defun draw-piece (piece)
-    ;; (set-fg (tetpi-color piece))
-    ;; (set-bg (tetpi-color piece))
-    (net-show (cells (aref (tetpi-data piece) 2)))
-    ;; (reset-colors)
-    )
+  (defun draw-piece (piece fn)
+    (funcall fn (cells (aref (tetpi-data piece) (tetpi-orientation piece)))))
 
-  ;; start
-  (draw-piece (get-next-piece))
+  (defun get-random-piece ()
+    (let ((piece (get-piece :color-idx (random (length *colors*))
+                            :piece-idx (random (car *pieces-dim*)))))
+      (let ((orient-idx (+ 1 (random (tetpi-symmetry piece)))))
+        (setf (tetpi-orientation piece) orient-idx)
+        ;; (format t "~A~%" piece)
+        piece)))
+
+
+  (defmacro with-pipe (pipe-var &body body)
+    `(let ((,pipe-var (open "./test-pipe"
+                            :direction :output :if-does-not-exist :error)))
+       (prog1 (progn ,@body)
+         (finish-output ,pipe-var)
+         (close ,pipe-var))))
+
+  ;; (macroexpand-1 '(with-pipe my-pipe
+  ;;                  (some1) (some2)))
+
+  (defun pipe-xy (x y msg)
+    (with-pipe my-pipe
+      (format my-pipe "~A[~A;~AH~A"
+              (code-char 27) x y msg)))
+
+
+  (sb-posix:getcwd)
 
   (with-pipe my-pipe
-    (format my-pipe "~A"
-            (with-output-to-string (*standard-output*)
-              (draw-piece (get-next-piece 1) #'fil-show))))
+    (pipe-xy 1 0 ".a...................")
+    (pipe-xy 2 0 "..b..................")
+    (pipe-xy 3 0 "...c.................")
+    (pipe-xy 4 0 "....d................")
+    (let ((res (with-output-to-string (*standard-output*)
+                 (let ((piece (get-random-piece)))
+                   (set-fg (tetpi-color piece))
+                   (set-bg (tetpi-color piece))
+                   (draw-piece piece
+                               ;; #'net-show
+                               #'fill-show
+                               )
+                   (reset-colors)
+                   )
+                 )))
+      (format t "~A" res)
+      (format my-pipe "~A" res)))
 #+END_SRC
 
 * Makefile
