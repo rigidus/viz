@@ -89,7 +89,7 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
 * Draw functions
 
 #+BEGIN_SRC lisp
-  (defmacro bprint (var)
+    (defmacro bprint (var)
     `(subseq (with-output-to-string (*standard-output*)  (pprint ,var)) 1))
 
   (defconstant +RED+ 1)
@@ -104,9 +104,9 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
   (defconstant +NEXT-Y+ 11)
 
   (defconstant +NEXT-EMPTY-CELL+ "  ")
-  (defconstant +FILLED_CELL+ "[]")
+  (defconstant +FILLED_CELL+ "A")
 
-  (defparameter *sep* #\Newline
+  (defparameter *sep* "" ;; #\Newline
     )
 
   (defun xyprint (x y msg)
@@ -123,6 +123,8 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
 
   (defun clear-screen ()
     (format t "~A[2J~A" (code-char 27) *sep*))
+
+  (clear-screen)
 
   (defun net-show (coords)
     (format t "coords: ~A~%" coords)
@@ -141,7 +143,7 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
 
   (defun fill-show (coords)
     (loop for (x y) in coords do
-      (xyprint x y +FILLED_CELL+)))
+      (xyprint (+ 10 x) (+ 10 y) +FILLED_CELL+)))
 
   (defun cells (data)
     "for every digit in data (like #x1256) x=((cell & 3)) y=((cell >> 2))"
@@ -244,14 +246,35 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
               (code-char 27) x y msg)))
 
 
-  (sb-posix:getcwd)
+  (defmacro pip (&body body)
+    `(with-pipe my-pipe
+       (let ((res (with-output-to-string (*standard-output*)
+                    ,@body)))
+         (format my-pipe "~A" res))))
 
-  (with-pipe my-pipe
-    (pipe-xy 1 0 ".a...................")
-    (pipe-xy 2 0 "..b..................")
-    (pipe-xy 3 0 "...c.................")
-    (pipe-xy 4 0 "....d................")
-    (let ((res (with-output-to-string (*standard-output*)
+
+
+
+  (pip
+    (set-fg 7)
+    (set-bg 1)
+    ;; (xyprint 0 0 "[=..................=]")
+    (xyprint 9  6 "qwertyuiop2")
+    (xyprint 10 6 "qwertyuiop2")
+    (xyprint 11 6 "qwertyuiop0")
+    (xyprint 12 6 "qwertyuiop1")
+    (xyprint 13 6 "qwertyuiop1")
+    (set-fg 1)
+    (set-bg 7)
+    (let ((piece (get-random-piece)))
+      (draw-piece piece
+                  ;; #'net-show
+                  #'fill-show
+                  ))
+    (reset-colors))
+
+
+  (let ((res (with-output-to-string (*standard-output*)
                  (let ((piece (get-random-piece)))
                    (set-fg (tetpi-color piece))
                    (set-bg (tetpi-color piece))
@@ -263,7 +286,10 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
                    )
                  )))
       (format t "~A" res)
-      (format my-pipe "~A" res)))
+      (format my-pipe "~A" res)
+      (pipe-xy 1 0 "...................f")
+  ))
+
 #+END_SRC
 
 * Makefile
@@ -1275,10 +1301,10 @@ A good strategy for an application would be to enable mouse reporting, then (opt
           break;
       case 0:
           last_down_time = get_current_micros();
-          if (!cmd_down(&current_piece, playfield)) {
-              current_piece = get_current_piece(next_piece, playfield);
-              next_piece = get_next_piece(next_visible);
-          }
+          /* if (!cmd_down(&current_piece, playfield)) { */
+          /*     current_piece = get_current_piece(next_piece, playfield); */
+          /*     next_piece = get_next_piece(next_visible); */
+          /* } */
           break;
       case ' ':
           cmd_drop(&current_piece, playfield);

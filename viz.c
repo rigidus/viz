@@ -707,10 +707,10 @@ int main(int argc, char* argv[]) {
             break;
         case 0:
             last_down_time = get_current_micros();
-            if (!cmd_down(&current_piece, playfield)) {
-                current_piece = get_current_piece(next_piece, playfield);
-                next_piece = get_next_piece(next_visible);
-            }
+            /* if (!cmd_down(&current_piece, playfield)) { */
+            /*     current_piece = get_current_piece(next_piece, playfield); */
+            /*     next_piece = get_next_piece(next_visible); */
+            /* } */
             break;
         case ' ':
             cmd_drop(&current_piece, playfield);
