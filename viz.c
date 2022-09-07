@@ -478,7 +478,7 @@ char get_key(long delay) {
     /* DELAY */
     struct timeval tv;
     fd_set fs;
-    
+
     /* заполняем структуру ожидания */
     tv.tv_sec = 0;
     tv.tv_usec = 0;
@@ -486,7 +486,7 @@ char get_key(long delay) {
         tv.tv_sec = delay / 1000000;
         tv.tv_usec = delay % 1000000;
     }
-    
+
     /* ожидаем на select-e */
     /* здесь мы неявно предполагаем, что fdfifo больше stdin */
     FD_ZERO(&fs);                 /* clear a set */
@@ -494,19 +494,19 @@ char get_key(long delay) {
     FD_SET(fdfifo, &fs);          /* add fdfifo */
     int nfds = fdfifo + 1;        /* вместо fdfifo + 1 */
     select(nfds, &fs, 0, 0, &tv);
-    
+
     /* тут мы оказываемся, если что-то пришло или таймаут */
     int fifo_flag = FD_ISSET(fdfifo, &fs);
     int stdin_flag = FD_ISSET(STDIN_FILENO, &fs);
 
     /* вложеная функция чтения из пайпа */
     void read_and_show_pipe () {
-        char pipe_buf[4096];
-        int pipe_buf_len = read(fdfifo, pipe_buf, 4096);
+        char pipe_buf[65535] = {0}; // initialization by zeros
+        int pipe_buf_len = read(fdfifo, pipe_buf, 65535);
         if (0 > pipe_buf_len) {
             error_exit(errno);
         }
-        char tmp[4096];
+        char tmp[65535];
         sprintf(tmp, "%s", pipe_buf);
         xyprint(0, 29, tmp);
     }
