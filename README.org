@@ -129,117 +129,6 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
 
   (defparameter *tetris-delay* (* +DELAY+ 1000000))
 
-
-  (defun xyprint (x y msg)
-    (format t "~A[~A;~AH~A~A" (code-char 27) x y msg *sep*))
-
-  (defun set-fg (color)
-    (format t "~A[3~Am~A" (code-char 27) color *sep*))
-
-  (defun set-bold ()
-    (format t "~A[1m~A" (code-char 27) *sep*))
-
-  (defun unset-bold ()
-    (format t "~A[0m~A" (code-char 27) *sep*))
-
-  (defun set-bg (color)
-    (format t "~A[4~Am~A" (code-char 27) color *sep*))
-
-  (defun reset-colors ()
-    (format t "~A[0m~A" (code-char 27) *sep*))
-
-  (defun clear-screen ()
-    (format t "~A[2J~A" (code-char 27) *sep*))
-
-  (defun net-show (coords)
-    (format t "coords: ~A~%" coords)
-    (let ((max-x (apply #'max (mapcar #'car coords)))
-          (max-y (apply #'max (mapcar #'cadr coords))))
-      (loop for yy from 0 below (+ 1 max-y) :do
-        (loop for xx from 0 below (+ 1 max-x) :do
-          (let ((flag))
-            (loop for (x y) in coords do
-              (if (and (= yy y) (= xx x))
-                  (setf flag t)))
-            (if flag
-                (format t "X")
-                (format t "."))))
-        (format t "~%"))))
-
-  (defun fill-show (coords)
-    (loop for (x y) in coords do
-      (xyprint x y +FILLED-CELL+)))
-
-  (defun get-cells (piece position)
-    "piece : struct tetpi
-     position : (simple-vector 3)"
-    (let* ((data (aref (tetpi-data piece) (tetpi-orientation piece)))
-           (xx (tetpi-x piece))
-           (yy (tetpi-y piece))
-           (cells (make-array 8 :element-type 'integer :initial-element 0)))
-      (when position
-        (setf xx (aref position 0))
-        (setf yy (aref position 1))
-        (setf data (aref (tetpi-data piece) (aref position 2))))
-      (loop for idx from 0 below 4 do
-        (setf (aref cells (* 2 idx))
-              (logand 3 (ash data (* -4 idx))))
-        (setf (aref cells (+ 1 (* 2 idx)))
-              (logand 3 (ash data (- (+ 2 (* 4 idx)))))))
-      cells))
-
-  (defmacro with-pipe (pipe-var &body body)
-    `(let ((,pipe-var (open "./test-pipe"
-                            :direction :output :if-does-not-exist :error)))
-       (prog1 (progn ,@body)
-         (finish-output ,pipe-var)
-         (close ,pipe-var))))
-
-  (defmacro pip (&body body)
-    `(with-pipe my-pipe
-       (let ((res (prog1 (with-output-to-string (*standard-output*)
-                           ,@body)
-                    (finish-output))))
-         (format my-pipe "~A" res)
-        res)))
-
-
-  ;; (defun flatten-piece(piece playfield)
-  ;;   (let ((cells (cells (aref (tetpi-data piece) (tetpi-orientation piece)))))
-  ;;     cells))
-
-  ;; (let ((next-piece (get-random-piece))
-  ;;       (playfield (loop for idx from 0 to +PLAYFIELD-H+ collect 0)))
-  ;;   (flatten-piece next-piece playfield ))
-
-  ;;   (draw-piece next-piece #'fill-show)))
-
-  ;;     (loop for idx from 0 to 4 do
-  ;;       (let ((x))))))
-
-
-  ;; (let* ((playfield (loop for idx from 0 to +PLAYFIELD-H+ collect 0)))
-  ;;   playfield)
-
-
-  ;; int line_complete(int line) {
-
-  ;; int process_complete_lines(int *playfield) {
-
-  ;; void process_fallen_piece(tetris_piece_s *piece, int *playfield) {
-
-  ;; void cmd_right(tetris_piece_s *piece, int *playfield) {
-
-  ;; void cmd_left(tetris_piece_s *piece, int *playfield) {
-
-  ;; void cmd_rotate(tetris_piece_s *piece, int *playfield) {
-
-  ;; int cmd_down(tetris_piece_s *piece, int *playfield) {
-
-  ;; process_fallen_piece(piece, playfield);
-
-  ;; void cmd_drop(tetris_piece_s *piece, int *playfield) {
-
   ;; this array holds all possible pieces that can be used in the game
   ;; each piece consists of 4 cells numbered from 0x0 to 0xf:
   ;; 0123
@@ -277,8 +166,97 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
     (color 0 :type fixnum)
     (symmetry 0 :type fixnum)
     (orientation 0 :type fixnum)
-    (data)
-    (empty-cell))
+    (data))
+
+  (defun xyprint (x y msg)
+    (format t "~A[~A;~AH~A~A" (code-char 27) y x msg *sep*))
+
+  (defun set-fg (color)
+    (format t "~A[3~Am~A" (code-char 27) color *sep*))
+
+  (defun set-bold ()
+    (format t "~A[1m~A" (code-char 27) *sep*))
+
+  (defun unset-bold ()
+    (format t "~A[0m~A" (code-char 27) *sep*))
+
+  (defun set-bg (color)
+    (format t "~A[4~Am~A" (code-char 27) color *sep*))
+
+  (defun reset-colors ()
+    (format t "~A[0m~A" (code-char 27) *sep*))
+
+  (defun clear-screen ()
+    (format t "~A[2J~A" (code-char 27) *sep*))
+
+  (defun get-cells (piece position)
+    "piece : struct tetpi
+     position : (simple-vector 3)"
+    (let* ((data (aref (tetpi-data piece) (tetpi-orientation piece)))
+           (xx (tetpi-x piece))
+           (yy (tetpi-y piece))
+           (cells (make-array 8 :element-type 'integer :initial-element 0)))
+      (when position
+        (setf xx (aref position 0))
+        (setf yy (aref position 1))
+        (setf data (aref (tetpi-data piece) (aref position 2))))
+      (loop for idx from 0 below 4 do
+        (setf (aref cells (* 2 idx))
+              (logand 3 (ash data (* -4 idx))))
+        (setf (aref cells (+ 1 (* 2 idx)))
+              (logand 3 (ash data (- (+ 2 (* 4 idx)))))))
+      cells))
+
+  (defmacro with-pipe (pipe-var &body body)
+    `(let ((,pipe-var (open "./test-pipe"
+                            :direction :output :if-does-not-exist :error)))
+       (prog1 (progn ,@body)
+         (finish-output ,pipe-var)
+         (close ,pipe-var))))
+
+  (defmacro pip (&body body)
+    `(with-pipe my-pipe
+       (let ((res (prog1 (with-output-to-string (*standard-output*)
+                           ,@body)
+                    (finish-output))))
+         (format my-pipe "~A" res)
+        res)))
+
+  ;; (defun flatten-piece(piece playfield)
+  ;;   (let ((cells (cells (aref (tetpi-data piece) (tetpi-orientation piece)))))
+  ;;     cells))
+
+  ;; (let ((next-piece (get-random-piece))
+  ;;       (playfield (loop for idx from 0 to +PLAYFIELD-H+ collect 0)))
+  ;;   (flatten-piece next-piece playfield ))
+
+  ;;   (draw-piece next-piece #'fill-show)))
+
+  ;;     (loop for idx from 0 to 4 do
+  ;;       (let ((x))))))
+
+
+  ;; (let* ((playfield (loop for idx from 0 to +PLAYFIELD-H+ collect 0)))
+  ;;   playfield)
+
+
+  ;; int line_complete(int line) {
+
+  ;; int process_complete_lines(int *playfield) {
+
+  ;; void process_fallen_piece(tetris_piece_s *piece, int *playfield) {
+
+  ;; void cmd_right(tetris_piece_s *piece, int *playfield) {
+
+  ;; void cmd_left(tetris_piece_s *piece, int *playfield) {
+
+  ;; void cmd_rotate(tetris_piece_s *piece, int *playfield) {
+
+  ;; int cmd_down(tetris_piece_s *piece, int *playfield) {
+
+  ;; process_fallen_piece(piece, playfield);
+
+  ;; void cmd_drop(tetris_piece_s *piece, int *playfield) {
 
   (defun get-piece (&key color-idx piece-idx)
     (let* ((next-piece-data
@@ -290,13 +268,13 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
            (next_piece (make-tetpi
                         :origin-x +NEXT-X+
                         :origin-y +NEXT-Y+
-                        :x 0
-                        :y 0
+                        :x 3
+                        :y 3
                         :color (aref *colors* color-idx)
                         :data next-piece-data
                         :symmetry (aref next-piece-data 0)
                         ;; :orientation 0 ;; skipped for init in get-random-piece
-                        :empty-cell +NEXT-EMPTY-CELL+)))
+                        )))
       next_piece))
 
   (defun get-random-piece ()
@@ -332,7 +310,6 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
       (setf (tetpi-y cur) 0)
       (setf (tetpi-origin-x cur) +PLAYFIELD-X+)
       (setf (tetpi-origin-y cur) +PLAYFIELD-Y+)
-      (setf (tetpi-empty-cell cur) +PLAYFIELD-EMPTY-CELL+)
       (if (not (position-ok cur playfield nil))
           (error 'bad-position))
       ;; ;; (pip (draw-piece cur #'fill-show)) ;; очистка
@@ -350,24 +327,24 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
       (incf *level*))
     (set-bold)
     (set-fg +SCORE-COLOR+)
-    (xyprint 2 0 (format nil "Lines completed: ~A   " *lines-completed*))
-    (xyprint 3 0 (format nil "Level:           ~A   " *level*))
-    (xyprint 4 0 (format nil "Score:           ~A   " *score*))
+    (xyprint 0 2 (format nil "Lines completed: ~A   " *lines-completed*))
+    (xyprint 0 3 (format nil "Level:           ~A   " *level*))
+    (xyprint 0 4 (format nil "Score:           ~A   " *score*))
     (reset-colors))
 
   (defun draw-help (&key visible)
     (when visible
       (set-fg +HELP-COLOR+)
       (set-bold))
-    (xyprint   1 58 "  Use cursor keys")
-    (xyprint   2 58 "       or")
-    (xyprint   3 58 "    s: rotate")
-    (xyprint   4 58 "a: left  d: right")
-    (xyprint   5 58 "    space: drop")
-    (xyprint   6 58 "      q: quit")
-    (xyprint   7 58 "  c: toggle color")
-    (xyprint   8 58 "n: toggle show next")
-    (xyprint   9 58 "h: toggle this help"))
+    (xyprint 58 1 "  Use cursor keys")
+    (xyprint 58 2 "       or")
+    (xyprint 58 3 "    s: rotate")
+    (xyprint 58 4 "a: left  d: right")
+    (xyprint 58 5 "    space: drop")
+    (xyprint 58 6 "      q: quit")
+    (xyprint 58 7 "  c: toggle color")
+    (xyprint 58 8 "n: toggle show next")
+    (xyprint 58 9 "h: toggle this help"))
 
   (defun draw-border ()
     (let ((x1 (- +PLAYFIELD-X+ 2))
@@ -377,20 +354,19 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
       (set-fg +BORDER-COLOR+)
       (loop for i from 0 to +PLAYFIELD-H+ do
         (setf y (+ i +PLAYFIELD-Y+))
-        (xyprint y x1  "<|")
-        (xyprint y x2  "|>"))
+        (xyprint x1 y  "<|")
+        (xyprint x2 y "|>"))
       (setf y (+ +PLAYFIELD-Y+ +PLAYFIELD-H+))
       (loop for i from 0 to (- +PLAYFIELD-W+ 1) do
         (setf x1 (+ (* i 2) +PLAYFIELD-X+))
-        (xyprint y x1 "==")
-        (xyprint (+ y 1) x1 "\\/")
-            )
+        (xyprint x1 y "==")
+        (xyprint x1 (+ y 1) "\\/"))
       (reset-colors)))
 
   (defun draw-playfield (playfield)
     (loop for yy from 0 below +PLAYFIELD-H+ do
       (progn
-        (xyprint (+ yy +PLAYFIELD-Y+) +PLAYFIELD-X+ "")
+        (xyprint +PLAYFIELD-X+ (+ yy +PLAYFIELD-Y+) "")
         (loop for xx from 0 below +PLAYFIELD-W+ do
           (let* ((elt (aref playfield yy))
                  (color (logand 7 (ash elt (* xx -3)))))
@@ -406,44 +382,17 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
   ;; (pip
   ;;   (draw-playfield *playfield*))
 
-  (defun redraw-screen (next-piece current-piece playfield)
-    ;; (pip (clear-screen))
-    ;; (draw-help :visible t)
-    ;; (update-score 0)
-    ;; (draw-border)
-    ;; (draw-playfield playfield)
-    (draw-piece next-piece t)
-    ;; (pip (draw-piece current-piece #'fill-show))
-    )
-
-  ;; init data
-  (defparameter *playfield* (make-array +PLAYFIELD-H+ :initial-element 0))
-  (defparameter *next-piece* (get-random-piece))
-  (defparameter *current-piece* (get-current-piece *next-piece* *playfield*))
-
-  (pip
-    (redraw-screen *next-piece* *current-piece* *playfield*))
-
-  (pip
-    (cls "." 3 20 7 16)
-    (draw-piece *next-piece* t))
-
-  (let* ((next-piece (get-next-piece)))
-    ;; (current-piece
-    (get-current-piece (get-next-piece) *playfield*))
-
-  (redraw-screen *next-piece* *current-piece* *playfield*)
-  ;; (pip (draw-piece current-piece #'fill-show))
-  ;; (pip (draw-piece next-piece #'fill-show))
-  )
-
-  ;; ----------------
+  (defun cls (sym from-x to-x from-y to-y)
+    (loop for yy from from-y to to-y do
+      (loop for xx from from-x to to-x do
+        (xyprint xx yy (format nil "~A" sym)))))
 
   (defun draw-piece (piece visible)
     (let ((cells (get-cells piece nil)))
       (when visible
-        (set-fg (tetpi-color piece))
-        (set-bg (tetpi-color piece)))
+        ;; (set-fg (tetpi-color piece))
+        ;; (set-bg (tetpi-color piece))
+        )
       (loop for idx from 0 below 4 do
         (let ((xx (+ (aref cells (* 2 idx))        (tetpi-origin-x piece)))
               (yy (+ (aref cells (+ 1 (* 2 idx)))  (tetpi-origin-y piece))))
@@ -453,30 +402,43 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
       (when visible
         (reset-colors))))
 
-  (defun cls (sym from-x to-x from-y to-y)
-    (loop for yy from from-y to to-y do
-      (loop for xx from from-x to to-x do
-        (xyprint yy xx (format nil "~A" sym)))))
+  (defun redraw-screen (next-piece current-piece playfield)
+    (clear-screen)
+    (draw-help :visible t)
+    (update-score 0)
+    (draw-border)
+    (draw-playfield playfield)
+    (draw-piece next-piece t)
+    (draw-piece current-piece t)
+    )
 
+  ;; (pip (redraw-screen *next-piece* *current-piece* *playfield*))
 
-  ;; (macroexpand-1 '(with-pipe my-pipe (some1) (some2)))
+  ;; init data
+  (defparameter *playfield* (make-array +PLAYFIELD-H+ :initial-element 0))
+  (defparameter *next-piece* (get-random-piece))
+  (defparameter *current-piece* (get-current-piece *next-piece* *playfield*))
+
+  ;; (pip
+  ;;   (defparameter *next-piece* (get-random-piece))
+  ;;   (cls "." 4 20  7 20)
+  ;;   (draw-piece *next-piece* t))
 
   (defun move (piece playfield dx dy dz)
-  (let ((new-x (+ dx (tetpi-x piece)))
-        (new-y (+ dy (tetpi-y piece)))
-        (new-orientation (mod (+ dz (tetpi-orientation piece))
-                              (tetpi-symmetry piece))))
-    (if (not (position-ok piece playfield new-position))
-        (equal dy 0) ;; return value
-        ;; else
-        (progn
-          ;; draw_piece(*piece, 0) ;; стереть
-          (setf (tetpi-x piece) new-x)
-          (setf (tetpi-y piece) new-y)
-          (setf (tetpi-orientation piece) new-orientation)
-          ;; draw_piece(*piece, 1) ;; нарисовать
-          t))))
-
+    (let ((new-x (+ dx (tetpi-x piece)))
+          (new-y (+ dy (tetpi-y piece)))
+          (new-orientation (mod (+ dz (tetpi-orientation piece))
+                                (tetpi-symmetry piece))))
+      (if (not (position-ok piece playfield new-position))
+          (equal dy 0) ;; return value
+          ;; else
+          (progn
+            (draw_piece piece nil) ;; стереть
+            (setf (tetpi-x piece) new-x)
+            (setf (tetpi-y piece) new-y)
+            (setf (tetpi-orientation piece) new-orientation)
+            (draw_piece piece t) ;; нарисовать
+            t))))
 #+END_SRC
 
 * Makefile
