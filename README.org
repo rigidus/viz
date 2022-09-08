@@ -111,10 +111,9 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
   (defconstant +NEXT-X+ 14)
   (defconstant +NEXT-Y+ 11)
 
+  (defconstant +FILLED-CELL+ "[]")
   (defconstant +NEXT-EMPTY-CELL+ "  ")
   (defconstant +PLAYFIELD-EMPTY-CELL+ " .")
-
-  (defconstant +FILLED-CELL+ "[]")
 
   (defparameter *sep* "" ;; #\Newline
     )
@@ -129,35 +128,6 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
 
   (defparameter *tetris-delay* (* +DELAY+ 1000000))
 
-  ;; this array holds all possible pieces that can be used in the game
-  ;; each piece consists of 4 cells numbered from 0x0 to 0xf:
-  ;; 0123
-  ;; 4567
-  ;; 89ab
-  ;; cdef
-  ;; each string is sequence of cells for different orientations
-  ;; depending on piece symmetry there can be 1, 2 or 4 orientations
-  ;; relative coordinates are calculated as follows:
-  ;; x=((cell & 3)) y=((cell >> 2))
-  (defconstant +PIECES+ '((1 #x1256 0 0 0)                  ;; square
-                          (2 #x159d #x4567 0 0)             ;; line
-                          (2 #x4512 #x0459 0 0)             ;; s
-                          (2 #x0156 #x1548 0 0)             ;; z
-                          (4 #x159a #x8456 #x0159 #x2654)   ;; l
-                          (4 #x1598 #x0456 #x2159 #xa654)   ;; r
-                          (4 #x1456 #x1596 #x4569 #x4159))) ;; t
-
-  (defparameter *pieces-dim* `(,(length +PIECES+) ,(length (car +PIECES+))))
-
-  (defparameter *pieces*
-    (make-array *pieces-dim*
-                :element-type 'fixnum
-                :initial-contents +PIECES+))
-
-  (defparameter *colors*
-    (make-array 7 :initial-contents `(,+RED+ ,+GREEN+ ,+YELLOW+ ,+BLUE+
-                                             ,+FUCHSIA+ ,+CYAN+ ,+WHITE+)))
-
   (defstruct tetpi
     (origin-x 0 :type fixnum)
     (origin-y 0 :type fixnum)
@@ -166,7 +136,8 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
     (color 0 :type fixnum)
     (symmetry 0 :type fixnum)
     (orientation 0 :type fixnum)
-    (data))
+    (data)
+    (empty-cell))
 
   (defun xyprint (x y msg)
     (format t "~A[~A;~AH~A~A" (code-char 27) y x msg *sep*))
@@ -224,37 +195,57 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
          (format my-pipe "~A" res)
         res)))
 
-  (defun get-piece (&key color-idx piece-idx)
-    (let* ((next-piece-data
-             (make-array (cadr *pieces-dim*)
-                         :displaced-to *pieces*
-                         :element-type 'fixnum
-                         :displaced-index-offset (* (cadr *pieces-dim*)
-                                                    piece-idx)))
-           (next_piece (make-tetpi
-                        :origin-x +NEXT-X+
-                        :origin-y +NEXT-Y+
-                        :x 3
-                        :y 3
-                        :color (aref *colors* color-idx)
-                        :data next-piece-data
-                        :symmetry (aref next-piece-data 0)
-                        ;; :orientation 0 ;; skipped for init in get-random-piece
-                        )))
-      next_piece))
+  ;; this array holds all possible pieces that can be used in the game
+  ;; each piece consists of 4 cells numbered from 0x0 to 0xf:
+  ;; 0123
+  ;; 4567
+  ;; 89ab
+  ;; cdef
+  ;; each string is sequence of cells for different orientations
+  ;; depending on piece symmetry there can be 1, 2 or 4 orientations
+  ;; relative coordinates are calculated as follows:
+  ;; x=((cell & 3)) y=((cell >> 2))
+  (defconstant +PIECES+ '((1 #x1256 0      0      0)        ;; square
+                          (2 #x159d #x4567 0      0)        ;; line
+                          (2 #x4512 #x0459 0      0)        ;; s
+                          (2 #x0156 #x1548 0      0)        ;; z
+                          (4 #x159a #x8456 #x0159 #x2654)   ;; l
+                          (4 #x1598 #x0456 #x2159 #xa654)   ;; r
+                          (4 #x1456 #x1596 #x4569 #x4159))) ;; t
 
-  (defun get-random-piece ()
-    (let ((piece (get-piece :color-idx (random (length *colors*))
-                            :piece-idx (random (car *pieces-dim*)))))
-      (let ((orient-idx (+ 1 (random (tetpi-symmetry piece)))))
-        (setf (tetpi-orientation piece) orient-idx)
-        piece)))
+  (defparameter *pieces-dim* `(,(length +PIECES+) ,(length (car +PIECES+))))
+  (defparameter *piece-data-len* (car *pieces-dim*))
+
+  (defparameter *piece_data*
+    (make-array *pieces-dim*
+                :element-type 'fixnum
+                :initial-contents +PIECES+))
+
+  (defparameter *colors*
+    (make-array 7 :initial-contents `(,+RED+ ,+GREEN+ ,+YELLOW+ ,+BLUE+
+                                             ,+FUCHSIA+ ,+CYAN+ ,+WHITE+)))
 
   (defun get-next-piece (visible)
-    (let ((random-piece (get-random-piece)))
-      (prog1
-          random-piece
-        (draw-piece random-piece visible))))
+    (let* ((next-piece-index (random *piece-data-len*))
+           (next-piece-data
+             (make-array (cadr *pieces-dim*)
+                         :displaced-to *piece-data*
+                         :element-type 'fixnum
+                         :displaced-index-offset (* (cadr *pieces-dim*)
+                                                    next-piece-index)))
+           (next-piece (make-tetpi
+                        :origin-x +NEXT-X+
+                        :origin-y +NEXT-Y+
+                        :x 0
+                        :y 0
+                        :color (aref *colors* (random (length *colors*)))
+                        :data (subseq next-piece-data 1)
+                        :symmetry (aref next-piece-data 0)
+                        :empty-cell +NEXT-EMPTY-CELL+)))
+      (setf (tetpi-orientation next-piece)
+            (random (tetpi-symmetry next-piece)))
+      (draw-piece next-piece visible)
+      next-piece))
 
   (defun position-ok (piece playfield position)
     (let ((cells (get-cells piece position))) ;; => #(2 0 1 1 2 1 1 0)
@@ -334,18 +325,16 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
         (xyprint +PLAYFIELD-X+ (+ yy +PLAYFIELD-Y+) "")
         (loop for xx from 0 below +PLAYFIELD-W+ do
           (let* ((elt (aref playfield yy))
-                 (color (logand 7 (ash elt (* xx -3)))))
+                 (color (logand (ash elt (* xx -3))
+                                7)))
             (if (equal 0 color)
-                (format t " ~A" +PLAYFIELD-EMPTY-CELL+)
+                (format t "~A" +PLAYFIELD-EMPTY-CELL+)
                 ;; else
                 (progn
                   ;; (set-bg color)
                   ;; (set-fg color)
-                  (format t "~A*" +FILLED-CELL+)
+                  (format t "~A" +FILLED-CELL+)
                   (reset-colors))))))))
-
-  ;; (pip
-  ;;   (draw-playfield *playfield*))
 
   (defun cls (sym from-x to-x from-y to-y)
     (loop for yy from from-y to to-y do
@@ -366,9 +355,6 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
                              +PLAYFIELD-EMPTY-CELL+))))
       (when visible
         (reset-colors))))
-
-  (pip
-    (draw-piece *current-piece* nil))
 
   (defun redraw-screen (next-piece current-piece playfield)
     (clear-screen)
@@ -427,13 +413,16 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
     (defparameter *playfield* (make-array +PLAYFIELD-H+ :initial-element 0))
     (pip
       (defparameter *next-piece* (get-next-piece *next-visible*))
+      (defparameter *save-next-piece* (copy-tetpi *next-piece*))
       (defparameter *current-piece* (get-current-piece *next-piece* *playfield*))
+      (defparameter *save-current-piece* (copy-tetpi *current-piece*))
       (setf *next-piece* (get-next-piece *next-visible*))
-      (setf (tetpi-x *current-piece*) 4)
-      (setf (tetpi-y *current-piece*) 4)
+      ;; (setf (tetpi-x *current-piece*) 4)
+      ;; (setf (tetpi-y *current-piece*) 4)
       ;; (setf (tetpi-origin-x *current-piece*) 4)
       ;; (setf (tetpi-origin-y *current-piece*) 4)
-      (redraw-screen *next-piece* *current-piece* *playfield*))
+      (redraw-screen *next-piece* *current-piece* *playfield*)
+      )
     (sleep 1)
     (pip
       (cmd-right *current-piece* *playfield*)
@@ -441,16 +430,16 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
       ;; (cls "." 4 25  7 20)
       ))
 
-  (pip
-    (redraw-screen *next-piece* *current-piece* *playfield*))
+  ;; (pip
+  ;;   (redraw-screen *next-piece* *current-piece* *playfield*))
 
-  (pip
-    (draw-piece *current-piece* t))
+  ;; (pip
+  ;;   (draw-piece *current-piece* t))
 
-  (setf (tetpi-x *current-piece*) 0)
+  ;; (setf (tetpi-x *current-piece*) 0)
 
-  (get-cells *current-piece* nil)
-  (print (move *current-piece* *playfield* 2 0 0))
+  ;; (get-cells *current-piece* nil)
+  ;; (print (move *current-piece* *playfield* 2 0 0))
 #+END_SRC
 
 * Makefile
