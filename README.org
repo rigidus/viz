@@ -366,25 +366,47 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
     (draw-piece current-piece t)
     )
 
-  ;; (defun flatten-piece(piece playfield)
-  ;;   (let ((cells (cells (aref (tetpi-data piece) (tetpi-orientation piece)))))
-  ;;     cells))
+  (defun flatten-piece(piece playfield)
+    (let ((xx 0)
+          (yy 0)
+          (cells (get-cells piece nil)))
+      (loop for ii from 0 below 4 do
+        (setf xx
+              (aref cells (* 2 ii)))
+        (setf yy
+              (aref cells (+ 1 (* 2 ii))))
+        (let ((it (aref playfield yy)))
+          (setf (aref playfield yy)
+                (logior it
+                        (ash (tetpi-color piece)
+                             (* xx -3))))))))
 
-  ;; int line_complete(int line) {
+  (defun line-complete (line)
+    (loop for ii from 0 below +PLAYFIELD-H+ do
+      (when (logand (ash line (* ii -3))
+                    7)
+        (return-from line-complete nil)))
+    (return-from line-complete t))
 
-  ;; int process_complete_lines(int *playfield) {
+  (defun process-complete-lines (playfield)
+    (let ((complete-lines 0))
+      (loop for ii from 0 below +PLAYFIELD-H+ do
+        (when (line-complete (aref playfield ii))
+          (loop for jj from ii above 0 do
+            (setf (aref playfield jj)
+                  (aref playfield (- jj 1))))
+          (setf (aref playfield 0) 0)
+          (incf complete-lines)))
+      complete-lines))
 
-  ;; void process_fallen_piece(tetris_piece_s *piece, int *playfield) {
-
-  ;; void cmd_left(tetris_piece_s *piece, int *playfield) {
-
-  ;; void cmd_rotate(tetris_piece_s *piece, int *playfield) {
-
-  ;; int cmd_down(tetris_piece_s *piece, int *playfield) {
-
-  ;; process_fallen_piece(piece, playfield);
-
-  ;; void cmd_drop(tetris_piece_s *piece, int *playfield) {
+  (defun process-fallen-piece(piece playfield)
+    (let ((complete-lines 0))
+      (flatten-piece piece playfield)
+      (setf complete-lines
+            (process-complete-lines playfield))
+      (when (> complete-lines 0)
+        (update-score complete-lines)
+        (draw-playfield playfield))))
 
   (defun move (piece playfield dx dy dz)
     (let* ((new-x (+ dx (tetpi-x piece)))
@@ -408,6 +430,21 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
   (defun cmd-right (piece playfield)
     (move piece playfield 1 0 0))
 
+  (defun cmd-left (piece playfield)
+    (move piece playfield -1 0 0))
+
+  (defun cmd-rotate (piece playfield)
+    (move piece playfield 0 0 1))
+
+  (defun cmd-down (piece playfield)
+    (if (equal 1 (move piece playfield 0 1 0))
+        (return-from cmd-down t))
+    (process-fallen-piece piece playfield)
+    (return-from cmd-down nil))
+
+  (defun cmd-drop (piece playfield)
+    (loop while (cmd-down piece playfield) do (equal t t)))
+
   (progn
     (defparameter *next-visible* t)
     (defparameter *playfield* (make-array +PLAYFIELD-H+ :initial-element 0))
@@ -426,7 +463,21 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
       (cmd-right *current-piece* *playfield*)
       ;; (redraw-screen *next-piece* *current-piece* *playfield*)
       ;; (cls "." 4 25  7 20)
-      ))
+      )
+    (sleep 1)
+    (pip
+      (cmd-left *current-piece* *playfield*))
+    (sleep 1)
+    (pip
+      (cmd-rotate *current-piece* *playfield*))
+    (sleep 1)
+    (pip
+      (cmd-down *current-piece* *playfield*))
+    (sleep 1)
+    (pip
+      (cmd-drop *current-piece* *playfield*))
+    )
+
 #+END_SRC
 
 * Makefile
