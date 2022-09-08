@@ -413,9 +413,7 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
     (defparameter *playfield* (make-array +PLAYFIELD-H+ :initial-element 0))
     (pip
       (defparameter *next-piece* (get-next-piece *next-visible*))
-      (defparameter *save-next-piece* (copy-tetpi *next-piece*))
       (defparameter *current-piece* (get-current-piece *next-piece* *playfield*))
-      (defparameter *save-current-piece* (copy-tetpi *current-piece*))
       (setf *next-piece* (get-next-piece *next-visible*))
       ;; (setf (tetpi-x *current-piece*) 4)
       ;; (setf (tetpi-y *current-piece*) 4)
@@ -429,17 +427,6 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
       ;; (redraw-screen *next-piece* *current-piece* *playfield*)
       ;; (cls "." 4 25  7 20)
       ))
-
-  ;; (pip
-  ;;   (redraw-screen *next-piece* *current-piece* *playfield*))
-
-  ;; (pip
-  ;;   (draw-piece *current-piece* t))
-
-  ;; (setf (tetpi-x *current-piece*) 0)
-
-  ;; (get-cells *current-piece* nil)
-  ;; (print (move *current-piece* *playfield* 2 0 0))
 #+END_SRC
 
 * Makefile
