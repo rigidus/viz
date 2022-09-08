@@ -112,7 +112,7 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
   (defconstant +NEXT-Y+ 11)
 
   (defconstant +NEXT-EMPTY-CELL+ "  ")
-  (defconstant +PLAYFIELD-EMPTY-CELL+ ".")
+  (defconstant +PLAYFIELD-EMPTY-CELL+ " .")
 
   (defconstant +FILLED-CELL+ "[]")
 
@@ -191,20 +191,22 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
 
   (defun get-cells (piece position)
     "piece : struct tetpi
-     position : (simple-vector 3)"
-    (let* ((data (aref (tetpi-data piece) (tetpi-orientation piece)))
+     position : (simple-vector 3) : dx,dy,dz"
+    (let* ((cells (make-array 8 :element-type 'integer :initial-element 0))
+           (data (aref (tetpi-data piece) (tetpi-orientation piece)))
            (xx (tetpi-x piece))
-           (yy (tetpi-y piece))
-           (cells (make-array 8 :element-type 'integer :initial-element 0)))
+           (yy (tetpi-y piece)))
       (when position
         (setf xx (aref position 0))
         (setf yy (aref position 1))
         (setf data (aref (tetpi-data piece) (aref position 2))))
       (loop for idx from 0 below 4 do
-        (setf (aref cells (* 2 idx))
-              (logand 3 (ash data (* -4 idx))))
-        (setf (aref cells (+ 1 (* 2 idx)))
-              (logand 3 (ash data (- (+ 2 (* 4 idx)))))))
+        (let ((x2 (* 2 idx))
+              (x4 (* 4 idx)))
+          (setf (aref cells x2)
+                (+ xx (logand (ash data (- x4)) 3)))
+          (setf (aref cells (+ 1 x2))
+                (+ yy (logand (ash data (- (+ 2 x4))) 3)))))
       cells))
 
   (defmacro with-pipe (pipe-var &body body)
@@ -353,8 +355,8 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
   (defun draw-piece (piece visible)
     (let ((cells (get-cells piece nil)))
       (when visible
-        ;; (set-fg (tetpi-color piece))
-        ;; (set-bg (tetpi-color piece))
+        (set-fg (tetpi-color piece))
+        (set-bg (tetpi-color piece))
         )
       (loop for idx from 0 below 4 do
         (let ((xx (+ (* (aref cells (* 2 idx)) 2)  (tetpi-origin-x piece)))
@@ -364,6 +366,9 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
                              +PLAYFIELD-EMPTY-CELL+))))
       (when visible
         (reset-colors))))
+
+  (pip
+    (draw-piece *current-piece* nil))
 
   (defun redraw-screen (next-piece current-piece playfield)
     (clear-screen)
@@ -403,7 +408,8 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
            (new-position
              (make-array 3 :initial-contents `(,new-x ,new-y ,new-orientation))))
       (if (not (position-ok piece playfield new-position))
-          (equal dy 0) ;; return value
+          ;; (equal dy 0) ;; return value
+          (error 'aaa)
           ;; else
           (progn
             (draw-piece piece nil) ;; стереть
@@ -423,13 +429,28 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
       (defparameter *next-piece* (get-next-piece *next-visible*))
       (defparameter *current-piece* (get-current-piece *next-piece* *playfield*))
       (setf *next-piece* (get-next-piece *next-visible*))
+      (setf (tetpi-x *current-piece*) 4)
+      (setf (tetpi-y *current-piece*) 4)
+      ;; (setf (tetpi-origin-x *current-piece*) 4)
+      ;; (setf (tetpi-origin-y *current-piece*) 4)
       (redraw-screen *next-piece* *current-piece* *playfield*))
     (sleep 1)
     (pip
       (cmd-right *current-piece* *playfield*)
-      (redraw-screen *next-piece* *current-piece* *playfield*)
-      (cls "." 4 25  7 20)
+      ;; (redraw-screen *next-piece* *current-piece* *playfield*)
+      ;; (cls "." 4 25  7 20)
       ))
+
+  (pip
+    (redraw-screen *next-piece* *current-piece* *playfield*))
+
+  (pip
+    (draw-piece *current-piece* t))
+
+  (setf (tetpi-x *current-piece*) 0)
+
+  (get-cells *current-piece* nil)
+  (print (move *current-piece* *playfield* 2 0 0))
 #+END_SRC
 
 * Makefile
