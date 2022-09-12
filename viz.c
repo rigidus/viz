@@ -462,7 +462,7 @@ long get_current_micros() {
     return t.tv_usec + t.tv_sec * 1000000;
 }
 char get_key(long delay) {
-    static char buf[16];
+    char buf[16] = {};
     static int buf_len = 0;
     static int buf_pos = 0;
 
@@ -478,7 +478,7 @@ char get_key(long delay) {
     /* DELAY */
     struct timeval tv;
     fd_set fs;
-
+    
     /* заполняем структуру ожидания */
     tv.tv_sec = 0;
     tv.tv_usec = 0;
@@ -486,7 +486,7 @@ char get_key(long delay) {
         tv.tv_sec = delay / 1000000;
         tv.tv_usec = delay % 1000000;
     }
-
+    
     /* ожидаем на select-e */
     /* здесь мы неявно предполагаем, что fdfifo больше stdin */
     FD_ZERO(&fs);                 /* clear a set */
@@ -494,7 +494,7 @@ char get_key(long delay) {
     FD_SET(fdfifo, &fs);          /* add fdfifo */
     int nfds = fdfifo + 1;        /* вместо fdfifo + 1 */
     select(nfds, &fs, 0, 0, &tv);
-
+    
     /* тут мы оказываемся, если что-то пришло или таймаут */
     int fifo_flag = FD_ISSET(fdfifo, &fs);
     int stdin_flag = FD_ISSET(STDIN_FILENO, &fs);
@@ -693,18 +693,18 @@ int main(int argc, char* argv[]) {
         case 'q':
             cmd_quit();
             break;
-        case 'C':
-        case 'd':
-            cmd_right(&current_piece, playfield);
-            break;
-        case 'D':
-        case 'a':
-            cmd_left(&current_piece, playfield);
-            break;
-        case 'A':
-        case 's':
-            cmd_rotate(&current_piece, playfield);
-            break;
+        /* case 'C': */
+        /* case 'd': */
+        /*     cmd_right(&current_piece, playfield); */
+        /*     break; */
+        /* case 'D': */
+        /* case 'a': */
+        /*     cmd_left(&current_piece, playfield); */
+        /*     break; */
+        /* case 'A': */
+        /* case 's': */
+        /*     cmd_rotate(&current_piece, playfield); */
+        /*     break; */
         case 0:
             last_down_time = get_current_micros();
             /* if (!cmd_down(&current_piece, playfield)) { */

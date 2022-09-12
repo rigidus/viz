@@ -46,31 +46,66 @@ To get keystrokes and mouse clicks, you can use reading from fifo, but you need 
 - click and press keys
 
 #+BEGIN_SRC lisp
-  (defun pipe-get()
-    (let ((my-pipe (open "test-pipe-ctrl"
-                         :direction :input :if-does-not-exist :error)))
-      (block loop-block
-        (let ((str ""))
-          (loop for ch = (handler-case (read-char my-pipe)
-                           (end-of-file () (return-from loop-block)))
-                do (progn
-                     (if (not (char= ch #\newline))
-                         (setf str (format nil "~A~C" str ch))
-                         ;; else
-                         (progn
-                           (format t "[~A]~%" str)
-                           (setf str "")))))))))
+  (defun start (init fn)
+    (let ((process
+            (sb-ext:run-program "/usr/bin/xterm" '("-e" "./a.out") :wait nil)))
+      (sleep 1) ;; need pause for open pipe
+      (let ((my-pipe (open "test-pipe-ctrl"
+                           :direction :input :if-does-not-exist :error)))
+        (funcall init)
+        (block loop-block
+          (let ((str ""))
+            (loop for ch = (handler-case (read-char my-pipe)
+                             (end-of-file () (return-from loop-block)))
+                  do (progn
+                       (if (not (char= ch #\newline))
+                           (setf str (format nil "~A~C" str ch))
+                           ;; else
+                           (progn
+                             (funcall fn str process)
+                             (setf str ""))))))))))
 
-  (defun start ()
-    (sb-ext:run-program "/usr/bin/xterm" '("-e" "./a.out") :wait nil)
-    (sleep 1) ;; need pause for open pipe
-    (pipe-get)
-    )
-
-  (start)
+  (progn
+    (defparameter *next-visible* t)
+    (defparameter *playfield* (make-array +PLAYFIELD-H+ :initial-element 0))
+    (start
+     #'(lambda ()
+         (pip
+           (defparameter *next-piece* (get-next-piece *next-visible*))
+           (defparameter *current-piece* (get-current-piece *next-piece* *playfield*))
+           (setf *next-piece* (get-next-piece *next-visible*))
+           (redraw-screen *next-piece* *current-piece* *playfield*)))
+     #'(lambda (par process)
+         (cond ((equal par "1B.5B.44.00:00.00.00.00:00.00.00.00:00.00.00.00")
+                (progn
+                  (print "left")
+                  (pip
+                    (cmd-left *current-piece* *playfield*))))
+               ((equal par "1B.5B.43.00:00.00.00.00:00.00.00.00:00.00.00.00")
+                (progn
+                  (print "right")
+                  (pip
+                    (cmd-right *current-piece* *playfield*)
+                    ;; (redraw-screen *next-piece* *current-piece* *playfield*)
+                    ;; (cls "." 4 25  7 20)
+                    )))
+               ((equal par "1B.5B.41.00:00.00.00.00:00.00.00.00:00.00.00.00")
+                (progn
+                  (print "up")
+                  (pip
+                    (cmd-rotate *current-piece* *playfield*))))
+               ((equal par "1B.5B.42.00:00.00.00.00:00.00.00.00:00.00.00.00")
+                (progn
+                  (print "down")
+                  (pip
+                    (cmd-drop *current-piece* *playfield*))))
+               ((equal par "0A.00.00.00:00.00.00.00:00.00.00.00:00.00.00.00")
+                (progn
+                  (print "enter")
+                  (pip
+                    (cmd-down *current-piece* *playfield*))))
+               (t (print par))))))
 #+END_SRC
-
-When the program terminates, an error like “fifo closed unexpectedly” occurs, but it is easy to catch.
 
 * Screen functions
 
@@ -1037,7 +1072,7 @@ see [[*Init][Init]] and [[*Loop][Loop]]
 
 #+BEGIN_SRC c :noweb yes :noweb-ref funcs
   char get_key(long delay) {
-      static char buf[16];
+      char buf[16] = {};
       static int buf_len = 0;
       static int buf_pos = 0;
 
@@ -1484,18 +1519,18 @@ A good strategy for an application would be to enable mouse reporting, then (opt
       case 'q':
           cmd_quit();
           break;
-      case 'C':
-      case 'd':
-          cmd_right(&current_piece, playfield);
-          break;
-      case 'D':
-      case 'a':
-          cmd_left(&current_piece, playfield);
-          break;
-      case 'A':
-      case 's':
-          cmd_rotate(&current_piece, playfield);
-          break;
+      /* case 'C': */
+      /* case 'd': */
+      /*     cmd_right(&current_piece, playfield); */
+      /*     break; */
+      /* case 'D': */
+      /* case 'a': */
+      /*     cmd_left(&current_piece, playfield); */
+      /*     break; */
+      /* case 'A': */
+      /* case 's': */
+      /*     cmd_rotate(&current_piece, playfield); */
+      /*     break; */
       case 0:
           last_down_time = get_current_micros();
           /* if (!cmd_down(&current_piece, playfield)) { */
