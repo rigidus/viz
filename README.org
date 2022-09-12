@@ -49,17 +49,25 @@ To get keystrokes and mouse clicks, you can use reading from fifo, but you need 
   (defun pipe-get()
     (let ((my-pipe (open "test-pipe-ctrl"
                          :direction :input :if-does-not-exist :error)))
-      (loop for ch = (read-char my-pipe)
-            do (progn
-                 (if (null ch)
-                     (break))
-                 ;; (if (or (not ch) (char= ch #\newline))
-                 ;;     (return-from read-until-newline r)
-                 ;;     (setf r (concatenate 'string r (format nil "~c" c))))
-                 (format t "~A" ch)
-                 ))))
+      (block loop-block
+        (let ((str ""))
+          (loop for ch = (handler-case (read-char my-pipe)
+                           (end-of-file () (return-from loop-block)))
+                do (progn
+                     (if (not (char= ch #\newline))
+                         (setf str (format nil "~A~C" str ch))
+                         ;; else
+                         (progn
+                           (format t "[~A]~%" str)
+                           (setf str "")))))))))
 
-  ;; (pipe-get)
+  (defun start ()
+    (sb-ext:run-program "/usr/bin/xterm" '("-e" "./a.out") :wait nil)
+    (sleep 1) ;; need pause for open pipe
+    (pipe-get)
+    )
+
+  (start)
 #+END_SRC
 
 When the program terminates, an error like “fifo closed unexpectedly” occurs, but it is easy to catch.
@@ -216,7 +224,7 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
   (defparameter *pieces-dim* `(,(length +PIECES+) ,(length (car +PIECES+))))
   (defparameter *piece-data-len* (car *pieces-dim*))
 
-  (defparameter *piece_data*
+  (defparameter *piece-data*
     (make-array *pieces-dim*
                 :element-type 'fixnum
                 :initial-contents +PIECES+))
@@ -447,38 +455,38 @@ When the program terminates, an error like “fifo closed unexpectedly” occurs
        (when (cmd-down piece playfield)
          (go re))))
 
-  (progn
-    (defparameter *next-visible* t)
-    (defparameter *playfield* (make-array +PLAYFIELD-H+ :initial-element 0))
-    (pip
-      (defparameter *next-piece* (get-next-piece *next-visible*))
-      (defparameter *current-piece* (get-current-piece *next-piece* *playfield*))
-      (setf *next-piece* (get-next-piece *next-visible*))
-      ;; (setf (tetpi-x *current-piece*) 4)
-      ;; (setf (tetpi-y *current-piece*) 4)
-      ;; (setf (tetpi-origin-x *current-piece*) 4)
-      ;; (setf (tetpi-origin-y *current-piece*) 4)
-      (redraw-screen *next-piece* *current-piece* *playfield*)
-      )
-    (sleep 1)
-    (pip
-      (cmd-right *current-piece* *playfield*)
-      ;; (redraw-screen *next-piece* *current-piece* *playfield*)
-      ;; (cls "." 4 25  7 20)
-      )
-    (sleep 1)
-    (pip
-      (cmd-left *current-piece* *playfield*))
-    (sleep 1)
-    (pip
-      (cmd-rotate *current-piece* *playfield*))
-    (sleep 1)
-    (pip
-      (cmd-down *current-piece* *playfield*))
-    (sleep 1)
-    (pip
-      (cmd-drop *current-piece* *playfield*))
-    )
+  ;; (progn
+  ;;   (defparameter *next-visible* t)
+  ;;   (defparameter *playfield* (make-array +PLAYFIELD-H+ :initial-element 0))
+  ;;   (pip
+  ;;     (defparameter *next-piece* (get-next-piece *next-visible*))
+  ;;     (defparameter *current-piece* (get-current-piece *next-piece* *playfield*))
+  ;;     (setf *next-piece* (get-next-piece *next-visible*))
+  ;;     ;; (setf (tetpi-x *current-piece*) 4)
+  ;;     ;; (setf (tetpi-y *current-piece*) 4)
+  ;;     ;; (setf (tetpi-origin-x *current-piece*) 4)
+  ;;     ;; (setf (tetpi-origin-y *current-piece*) 4)
+  ;;     (redraw-screen *next-piece* *current-piece* *playfield*)
+  ;;     )
+  ;;   (sleep 1)
+  ;;   (pip
+  ;;     (cmd-right *current-piece* *playfield*)
+  ;;     ;; (redraw-screen *next-piece* *current-piece* *playfield*)
+  ;;     ;; (cls "." 4 25  7 20)
+  ;;     )
+  ;;   (sleep 1)
+  ;;   (pip
+  ;;     (cmd-left *current-piece* *playfield*))
+  ;;   (sleep 1)
+  ;;   (pip
+  ;;     (cmd-rotate *current-piece* *playfield*))
+  ;;   (sleep 1)
+  ;;   (pip
+  ;;     (cmd-down *current-piece* *playfield*))
+  ;;   (sleep 1)
+  ;;   (pip
+  ;;     (cmd-drop *current-piece* *playfield*))
+  ;;   )
 #+END_SRC
 
 * Makefile
@@ -1519,7 +1527,7 @@ A good strategy for an application would be to enable mouse reporting, then (opt
    }
 #+END_SRC
 
-* Send through pipe
+* WAIT Send through pipe
 
 #+BEGIN_SRC lisp
   (defun start-python ()
