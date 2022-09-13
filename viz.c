@@ -596,11 +596,11 @@ int main(int argc, char* argv[]) {
     char c = 0;
     char key[] = {0, 0, 0};
     tcflag_t c_lflag_orig = 0;
-    int help_visible = 1;
-    int next_visible = 1;
-    tetris_piece_s next_piece;
-    tetris_piece_s current_piece;
-    int playfield[PLAYFIELD_H] = {};
+    /* int help_visible = 1; */
+    /* int next_visible = 1; */
+    /* tetris_piece_s next_piece; */
+    /* tetris_piece_s current_piece; */
+    /* int playfield[PLAYFIELD_H] = {}; */
     int i = 0;
     int flags = fcntl(STDOUT_FILENO, F_GETFL);
     long last_down_time = 0;
@@ -635,9 +635,9 @@ int main(int argc, char* argv[]) {
     /* */
     last_down_time = get_current_micros();
     srandom(time(NULL));
-    for (i = 0; i < PLAYFIELD_H; i++) {
-        playfield[i] = 0;
-    }
+    /* for (i = 0; i < PLAYFIELD_H; i++) { */
+    /*     playfield[i] = 0; */
+    /* } */
     /* init cursor */
     cursor_control_on();
     /* init mouse */
@@ -671,11 +671,14 @@ int main(int argc, char* argv[]) {
     }
     fdfifo_ctrl = open(myfifo_ctrl, O_RDWR);
     /* init data */
-    next_piece = get_next_piece(next_visible);
-    current_piece = get_current_piece(next_piece, playfield);
-    next_piece = get_next_piece(next_visible);
+    
+    /* next_piece = get_next_piece(next_visible); */
+    /* current_piece = get_current_piece(next_piece, playfield); */
+    /* next_piece = get_next_piece(next_visible); */
+    
     /* redraw screen */
-    redraw_screen(help_visible, next_piece, next_visible, current_piece, playfield);
+    
+    /* redraw_screen(help_visible, next_piece, next_visible, current_piece, playfield); */
     fflush(stdout);
     /* loop */
     while(1) {
@@ -712,23 +715,23 @@ int main(int argc, char* argv[]) {
             /*     next_piece = get_next_piece(next_visible); */
             /* } */
             break;
-        case ' ':
-            cmd_drop(&current_piece, playfield);
-            current_piece = get_current_piece(next_piece, playfield);
-            next_piece = get_next_piece(next_visible);
-            break;
-        case 'h':
-            help_visible ^= 1;
-            draw_help(help_visible);
-            break;
-        case 'n':
-            next_visible ^= 1;
-            draw_piece(next_piece, next_visible);
-            break;
-        case 'c':
-            use_color ^= 1;
-            redraw_screen(help_visible, next_piece, next_visible, current_piece, playfield);
-            break;
+        /* case ' ': */
+        /*     cmd_drop(&current_piece, playfield); */
+        /*     current_piece = get_current_piece(next_piece, playfield); */
+        /*     next_piece = get_next_piece(next_visible); */
+        /*     break; */
+        /* case 'h': */
+        /*     help_visible ^= 1; */
+        /*     draw_help(help_visible); */
+        /*     break; */
+        /* case 'n': */
+        /*     next_visible ^= 1; */
+        /*     draw_piece(next_piece, next_visible); */
+        /*     break; */
+        /* case 'c': */
+        /*     use_color ^= 1; */
+        /*     redraw_screen(help_visible, next_piece, next_visible, current_piece, playfield); */
+        /*     break; */
         default:
             break;
         }
