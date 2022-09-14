@@ -366,11 +366,9 @@ To get keystrokes and mouse clicks, you can use reading from fifo, but you need 
                            (* xx 3)))))))
 
   (defun line-complete (line)
-    (print "uncomplete")
-    (loop for ii from 0 below +PLAYFIELD-H+ do
+    (loop for ii from 0 below +PLAYFIELD-W+ do
       (when (equal 0 (logand (ash line (* ii -3)) 7))
         (return-from line-complete nil)))
-    (print "complete")
     (return-from line-complete t))
 
   (defun process-complete-lines (playfield)
@@ -390,7 +388,7 @@ To get keystrokes and mouse clicks, you can use reading from fifo, but you need 
       (setf complete-lines
             (process-complete-lines playfield))
       (when (> complete-lines 0)
-        (error 'sss)
+        ;; (error 'sss)
         (update-score complete-lines)
         (draw-playfield playfield))))
 
@@ -464,6 +462,7 @@ To get keystrokes and mouse clicks, you can use reading from fifo, but you need 
   ;; ------------
 
   (progn
+    (defparameter *dbg* "")
     (defparameter *next-visible* t)
     (defparameter *playfield* (make-array +PLAYFIELD-H+ :initial-element 0))
     (start
@@ -500,6 +499,7 @@ To get keystrokes and mouse clicks, you can use reading from fifo, but you need 
                     (setf *next-piece* (get-next-piece *next-visible*)))
                   (pip
                     (redraw-screen *next-piece* *current-piece* *playfield*))
+                  (format t "~%~A" *dbg*)
                   ))
                ((equal par "0A.00.00.00:00.00.00.00:00.00.00.00:00.00.00.00")
                 (progn
@@ -507,6 +507,24 @@ To get keystrokes and mouse clicks, you can use reading from fifo, but you need 
                   (pip
                     (cmd-down *current-piece* *playfield*))))
                (t (print par))))))
+
+
+  ;; (defun dbg-show-playfield (playfield)
+  ;;   (format t "~%")
+  ;;   (loop for yy from 0 below +PLAYFIELD-H+ do
+  ;;     (progn
+  ;;       (loop for xx from 0 below +PLAYFIELD-W+ do
+  ;;         (let* ((elt (aref playfield yy))
+  ;;                (color (logand (ash elt (* xx -3))
+  ;;                               7)))
+  ;;           (if (equal 0 color)
+  ;;               (format t "~A" +PLAYFIELD-EMPTY-CELL+)
+  ;;               ;; else
+  ;;               (progn
+  ;;                 (format t "~A" +FILLED-CELL+)))))
+  ;;       (format t "~%"))))
+
+  ;; (dbg-show-playfield *playfield*)
 #+END_SRC
 
 * Makefile
