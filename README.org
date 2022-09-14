@@ -46,73 +46,6 @@ To get keystrokes and mouse clicks, you can use reading from fifo, but you need 
 - click and press keys
 
 #+BEGIN_SRC lisp
-  (define-condition quit-condition () ())
-
-  (defun start (init fn)
-    (let ((process
-            (sb-ext:run-program "/usr/bin/xterm" '("-e" "./a.out") :wait nil)))
-      (sleep 1) ;; need pause for open pipe
-      (let ((my-pipe (open "test-pipe-ctrl"
-                           :direction :input :if-does-not-exist :error)))
-        (funcall init)
-        (handler-case
-            (block loop-block
-              (let ((str ""))
-                (loop for ch = (handler-case (read-char my-pipe)
-                                 (end-of-file () (return-from loop-block)))
-                      do (progn
-                           (if (not (char= ch #\newline))
-                               (setf str (format nil "~A~C" str ch))
-                               ;; else
-                               (progn
-                                 (funcall fn str process)
-                                 (setf str "")))))))
-          (quit-condition ()
-            (progn
-              (close my-pipe)
-              (sb-ext:process-close process)))))))
-
-  (progn
-    (defparameter *next-visible* t)
-    (defparameter *playfield* (make-array +PLAYFIELD-H+ :initial-element 0))
-    (start
-     #'(lambda ()
-         (pip
-           (defparameter *next-piece* (get-next-piece *next-visible*))
-           (defparameter *current-piece* (get-current-piece *next-piece* *playfield*))
-           (setf *next-piece* (get-next-piece *next-visible*))
-           (redraw-screen *next-piece* *current-piece* *playfield*)))
-     #'(lambda (par process)
-         (cond ((equal par "1B.5B.44.00:00.00.00.00:00.00.00.00:00.00.00.00")
-                (progn
-                  (print "left")
-                  (pip
-                    (cmd-left *current-piece* *playfield*))))
-               ((equal par "1B.5B.43.00:00.00.00.00:00.00.00.00:00.00.00.00")
-                (progn
-                  (print "right")
-                  (pip
-                    (cmd-right *current-piece* *playfield*))))
-               ((equal par "1B.5B.41.00:00.00.00.00:00.00.00.00:00.00.00.00")
-                (progn
-                  (print "up")
-                  (pip
-                    (cmd-rotate *current-piece* *playfield*))))
-               ((equal par "1B.5B.42.00:00.00.00.00:00.00.00.00:00.00.00.00")
-                (progn
-                  (print "drop")
-                  (pip
-                    (cmd-drop *current-piece* *playfield*))
-                  (setf *current-piece* (get-current-piece *next-piece* *playfield*))
-                  (setf *next-piece* (get-next-piece *next-visible*))
-                  (redraw-screen *next-piece* *current-piece* *playfield*)
-                  ))
-               ((equal par "0A.00.00.00:00.00.00.00:00.00.00.00:00.00.00.00")
-                (progn
-                  (print "enter")
-                  (pip
-                    (cmd-down *current-piece* *playfield*))))
-               (t (print par))))))
 #+END_SRC
 
 * Screen functions
@@ -322,7 +255,7 @@ To get keystrokes and mouse clicks, you can use reading from fifo, but you need 
       (setf (tetpi-origin-y current-piece) +PLAYFIELD-Y+)
       (setf (tetpi-empty-cell current-piece) +PLAYFIELD-EMPTY-CELL+)
       (if (not (position-ok current-piece playfield nil))
-          (error 'quit-condition))
+          (error 'quit-condition1))
       (draw-piece next-piece nil) ;; очистка
       (draw-piece current-piece t)
       current-piece))
@@ -433,10 +366,11 @@ To get keystrokes and mouse clicks, you can use reading from fifo, but you need 
                            (* xx 3)))))))
 
   (defun line-complete (line)
+    (print "uncomplete")
     (loop for ii from 0 below +PLAYFIELD-H+ do
-      (when (logand (ash line (* ii -3))
-                    7)
+      (when (equal 0 (logand (ash line (* ii -3)) 7))
         (return-from line-complete nil)))
+    (print "complete")
     (return-from line-complete t))
 
   (defun process-complete-lines (playfield)
@@ -456,6 +390,7 @@ To get keystrokes and mouse clicks, you can use reading from fifo, but you need 
       (setf complete-lines
             (process-complete-lines playfield))
       (when (> complete-lines 0)
+        (error 'sss)
         (update-score complete-lines)
         (draw-playfield playfield))))
 
@@ -498,38 +433,80 @@ To get keystrokes and mouse clicks, you can use reading from fifo, but you need 
        (when (cmd-down piece playfield)
          (go re))))
 
-  ;; (progn
-  ;;   (defparameter *next-visible* t)
-  ;;   (defparameter *playfield* (make-array +PLAYFIELD-H+ :initial-element 0))
-  ;;   (pip
-  ;;     (defparameter *next-piece* (get-next-piece *next-visible*))
-  ;;     (defparameter *current-piece* (get-current-piece *next-piece* *playfield*))
-  ;;     (setf *next-piece* (get-next-piece *next-visible*))
-  ;;     ;; (setf (tetpi-x *current-piece*) 4)
-  ;;     ;; (setf (tetpi-y *current-piece*) 4)
-  ;;     ;; (setf (tetpi-origin-x *current-piece*) 4)
-  ;;     ;; (setf (tetpi-origin-y *current-piece*) 4)
-  ;;     (redraw-screen *next-piece* *current-piece* *playfield*)
-  ;;     )
-  ;;   (sleep 1)
-  ;;   (pip
-  ;;     (cmd-right *current-piece* *playfield*)
-  ;;     ;; (redraw-screen *next-piece* *current-piece* *playfield*)
-  ;;     ;; (cls "." 4 25  7 20)
-  ;;     )
-  ;;   (sleep 1)
-  ;;   (pip
-  ;;     (cmd-left *current-piece* *playfield*))
-  ;;   (sleep 1)
-  ;;   (pip
-  ;;     (cmd-rotate *current-piece* *playfield*))
-  ;;   (sleep 1)
-  ;;   (pip
-  ;;     (cmd-down *current-piece* *playfield*))
-  ;;   (sleep 1)
-  ;;   (pip
-  ;;     (cmd-drop *current-piece* *playfield*))
-  ;;   )
+
+
+  (define-condition quit-condition () ())
+
+  (defun start (init fn)
+    (let ((process
+            (sb-ext:run-program "/usr/bin/xterm" '("-e" "./a.out") :wait nil)))
+      (sleep 1) ;; need pause for open pipe
+      (let ((my-pipe (open "test-pipe-ctrl"
+                           :direction :input :if-does-not-exist :error)))
+        (funcall init)
+        (handler-case
+            (block loop-block
+              (let ((str ""))
+                (loop for ch = (handler-case (read-char my-pipe)
+                                 (end-of-file () (return-from loop-block)))
+                      do (progn
+                           (if (not (char= ch #\newline))
+                               (setf str (format nil "~A~C" str ch))
+                               ;; else
+                               (progn
+                                 (funcall fn str process)
+                                 (setf str "")))))))
+          (quit-condition ()
+            (progn
+              (close my-pipe)
+              (sb-ext:process-close process)))))))
+
+  ;; ------------
+
+  (progn
+    (defparameter *next-visible* t)
+    (defparameter *playfield* (make-array +PLAYFIELD-H+ :initial-element 0))
+    (start
+     #'(lambda ()
+         (pip
+           (defparameter *next-piece* (get-next-piece *next-visible*))
+           (defparameter *current-piece* (get-current-piece *next-piece* *playfield*))
+           (setf *next-piece* (get-next-piece *next-visible*))
+           (redraw-screen *next-piece* *current-piece* *playfield*)))
+     #'(lambda (par process)
+         (cond ((equal par "1B.5B.44.00:00.00.00.00:00.00.00.00:00.00.00.00")
+                (progn
+                  (print "left")
+                  (pip
+                    (cmd-left *current-piece* *playfield*))))
+               ((equal par "1B.5B.43.00:00.00.00.00:00.00.00.00:00.00.00.00")
+                (progn
+                  (print "right")
+                  (pip
+                    (cmd-right *current-piece* *playfield*))))
+               ((equal par "1B.5B.41.00:00.00.00.00:00.00.00.00:00.00.00.00")
+                (progn
+                  (print "up")
+                  (pip
+                    (cmd-rotate *current-piece* *playfield*))))
+               ((equal par "1B.5B.42.00:00.00.00.00:00.00.00.00:00.00.00.00")
+                (progn
+                  (print "drop")
+                  (pip
+                    (cmd-drop *current-piece* *playfield*))
+                  (pip
+                    (setf *current-piece* (get-current-piece *next-piece* *playfield*)))
+                  (pip
+                    (setf *next-piece* (get-next-piece *next-visible*)))
+                  (pip
+                    (redraw-screen *next-piece* *current-piece* *playfield*))
+                  ))
+               ((equal par "0A.00.00.00:00.00.00.00:00.00.00.00:00.00.00.00")
+                (progn
+                  (print "enter")
+                  (pip
+                    (cmd-down *current-piece* *playfield*))))
+               (t (print par))))))
 #+END_SRC
 
 * Makefile
