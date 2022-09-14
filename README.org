@@ -462,7 +462,6 @@ To get keystrokes and mouse clicks, you can use reading from fifo, but you need 
   ;; ------------
 
   (progn
-    (defparameter *dbg* "")
     (defparameter *next-visible* t)
     (defparameter *playfield* (make-array +PLAYFIELD-H+ :initial-element 0))
     (start
@@ -499,7 +498,6 @@ To get keystrokes and mouse clicks, you can use reading from fifo, but you need 
                     (setf *next-piece* (get-next-piece *next-visible*)))
                   (pip
                     (redraw-screen *next-piece* *current-piece* *playfield*))
-                  (format t "~%~A" *dbg*)
                   ))
                ((equal par "0A.00.00.00:00.00.00.00:00.00.00.00:00.00.00.00")
                 (progn
