@@ -126,12 +126,16 @@ To get keystrokes and mouse clicks, you can use reading from fifo, but you need 
          (close ,pipe-var))))
 
   (defmacro pip (&body body)
-    `(with-pipe my-pipe
-       (let ((res (prog1 (with-output-to-string (*standard-output*)
-                           ,@body)
-                    (finish-output))))
-         (format my-pipe "~A" res)
-        res)))
+    (let ((ret (gensym))
+          (out (gensym))
+          (pip (gensym)))
+      `(let* ((,ret)
+              (,out (progn (with-output-to-string (*standard-output*)
+                             (setf ,ret (progn ,@body))
+                             (finish-output)))))
+         (with-pipe ,pip
+           (format ,pip "~A" ,out))
+         ,ret)))
 
   ;; this array holds all possible pieces that can be used in the game
   ;; each piece consists of 4 cells numbered from 0x0 to 0xf:
@@ -450,8 +454,6 @@ To get keystrokes and mouse clicks, you can use reading from fifo, but you need 
                     (setf *current-piece* (get-current-piece *next-piece* *playfield*)))
                   (pip
                     (setf *next-piece* (get-next-piece *next-visible*)))
-                  (pip
-                    (redraw-screen *next-piece* *current-piece* *playfield*))
                   ))
                ((equal par "0A.00.00.00:00.00.00.00:00.00.00.00:00.00.00.00")
                 (progn
@@ -470,7 +472,12 @@ To get keystrokes and mouse clicks, you can use reading from fifo, but you need 
                         ((equal btn "22")
                          (format t "mouse: right press"))
                         ((equal btn "23")
-                         (format t "mouse: no press")))
+                         (format t "mouse: no press"))
+                        ((equal btn "61")
+                         (format t "mouse: scroll down"))
+                        ((equal btn "60")
+                         (format t "mouse: scroll up"))
+                        (t (format t par)))
                   (format t " ~A" crd)))
                ((equal par "tick")
                 (progn
@@ -735,6 +742,41 @@ echo -n "\u001B[0c"позволяет проверить поддержку Sixe
 
 ** Cursor control
 
+#+BEGIN_SRC c :noweb-ref globs
+  int  flag_cursor_control = 0;
+#+END_SRC
+
+#+BEGIN_SRC c :noweb-ref decls
+  void cursor_control_on();
+  void cursor_control_off();
+#+END_SRC
+
+#+BEGIN_SRC c :noweb-ref funcs
+  void cursor_control_on() {
+      printf("\033[?25l");
+      printf("\033[2;1'z"); /* switch on pixel resolution: \e[2;1'z */
+      flag_cursor_control = 1;
+  }
+  void cursor_control_off() {
+      printf("\033[?25h");
+      flag_cursor_control = 0;
+  }
+#+END_SRC
+
+#+NAME: init_cursor
+#+BEGIN_SRC c
+  /* init cursor */
+  cursor_control_on();
+#+END_SRC
+
+#+BEGIN_SRC c :noweb-ref fin
+  if (flag_cursor_control) {
+      cursor_control_off();
+  }
+#+END_SRC
+
+** Mouse control
+
 TODO: pixel mouse resolution
 https://stackoverflow.com/questions/44116977/get-mouse-position-in-pixels-using-escape-sequences
 
@@ -783,41 +825,6 @@ Unfortunately, the previous mouse reporting modes can only handle coordinates up
 A good strategy for an application would be to enable mouse reporting, then (optionally request urxvt 1015 mode and then) request SGR 1006 mode. The application should handle both the new and legacy mouse reporting responses, to continue working on terminal emulators without support for the new modes.
 
 #+BEGIN_SRC c :noweb-ref globs
-  int  flag_cursor_control = 0;
-#+END_SRC
-
-#+BEGIN_SRC c :noweb-ref decls
-  void cursor_control_on();
-  void cursor_control_off();
-#+END_SRC
-
-#+BEGIN_SRC c :noweb-ref funcs
-  void cursor_control_on() {
-      printf("\033[?25l");
-      printf("\033[2;1'z"); /* switch on pixel resolution: \e[2;1'z */
-      flag_cursor_control = 1;
-  }
-  void cursor_control_off() {
-      printf("\033[?25h");
-      flag_cursor_control = 0;
-  }
-#+END_SRC
-
-#+NAME: init_cursor
-#+BEGIN_SRC c
-  /* init cursor */
-  cursor_control_on();
-#+END_SRC
-
-#+BEGIN_SRC c :noweb-ref fin
-  if (flag_cursor_control) {
-      cursor_control_off();
-  }
-#+END_SRC
-
-** Mouse control
-
-#+BEGIN_SRC c :noweb-ref globs
   int  flag_mouse_control = 0;
 #+END_SRC
 
@@ -829,9 +836,12 @@ A good strategy for an application would be to enable mouse reporting, then (opt
 #+BEGIN_SRC c :noweb-ref funcs
   void mouse_control_on() {
       printf("\033[?1000h");
+      /* Mouse trap all, urxvt, SGR1006  */
+      /* printf("\033[1003h\033[1015h\033[1006h"); */
       flag_mouse_control = 1;
   }
   void mouse_control_off() {
+      /* Disable mouse trap */
       printf("\033[?1000l");
       flag_mouse_control = 0;
   }
@@ -922,7 +932,7 @@ timeval (с секундами и микросекундами).
 месте, чтобы указать, какой файл дескрипторы фактически изменили
 статус. Каждый из трех наборов файловых дескрипторов может быть указан
 как NULL, если ни один файловый дескриптор не должен отслеживаться в
-течение соответствующий класс событий.
+течение соответствующий класса событий.
 
 Для управления наборами предусмотрено четыре макроса. FD_ZERO()
 очищает набор. FD_SET() и FD_CLR() соответственно добавляют и удаляют
@@ -1022,6 +1032,8 @@ excludefds), которое может быть равно нулю, если т
                       stdi_buf[10], stdi_buf[11], stdi_buf[12], stdi_buf[13],
                       stdi_buf[14], stdi_buf[15]);
           xyprint(0, 25, tmp);
+          /* raw output */
+          xyprint(0, 26, stdi_buf);
           /* пишем в отдельный fifo */
           write(fdfifo_ctrl, tmp, tmp_len);
           write(fdfifo_ctrl, "\n", 1); /* need for line-buferization */

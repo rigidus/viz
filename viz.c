@@ -114,9 +114,12 @@ void cursor_control_off() {
 }
 void mouse_control_on() {
     printf("\033[?1000h");
+    /* Mouse trap all, urxvt, SGR1006  */
+    /* printf("\033[1003h\033[1015h\033[1006h"); */
     flag_mouse_control = 1;
 }
 void mouse_control_off() {
+    /* Disable mouse trap */
     printf("\033[?1000l");
     flag_mouse_control = 0;
 }
@@ -251,6 +254,8 @@ int main(int argc, char* argv[]) {
                         stdi_buf[10], stdi_buf[11], stdi_buf[12], stdi_buf[13],
                         stdi_buf[14], stdi_buf[15]);
             xyprint(0, 25, tmp);
+            /* raw output */
+            xyprint(0, 26, stdi_buf);
             /* пишем в отдельный fifo */
             write(fdfifo_ctrl, tmp, tmp_len);
             write(fdfifo_ctrl, "\n", 1); /* need for line-buferization */
@@ -282,10 +287,6 @@ int main(int argc, char* argv[]) {
             break;
         case 0:
             last_down_time = get_current_micros();
-            /* if (!cmd_down(&current_piece, playfield)) { */
-            /*     current_piece = get_current_piece(next_piece, playfield); */
-            /*     next_piece = get_next_piece(next_visible); */
-            /* } */
             break;
         default:
             break;
