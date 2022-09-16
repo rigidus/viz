@@ -614,20 +614,6 @@ see [[*Init][Init]] and [[*Loop][Loop]]
   #define DELAY 1
   #define DELAY_FACTOR 0.8
 
-  #define RED 1
-  #define GREEN 2
-  #define YELLOW 3
-  #define BLUE 4
-  #define FUCHSIA 5
-  #define CYAN 6
-  #define WHITE 7
-
-  #define PLAYFIELD_W 10
-  #define PLAYFIELD_H 20
-  #define PLAYFIELD_X 30
-  #define PLAYFIELD_Y 1
-  #define BORDER_COLOR YELLOW
-
   #define SCORE_X 1
   #define SCORE_Y 2
   #define SCORE_COLOR GREEN
@@ -635,18 +621,6 @@ see [[*Init][Init]] and [[*Loop][Loop]]
   #define HELP_X 58
   #define HELP_Y 1
   #define HELP_COLOR CYAN
-
-  #define NEXT_X 14
-  #define NEXT_Y 11
-
-  #define GAMEOVER_X 1
-  #define GAMEOVER_Y (PLAYFIELD_H + 3)
-
-  #define LEVEL_UP 20
-
-  #define FILLED_CELL "[]"
-  #define NEXT_EMPTY_CELL "  "
-  #define PLAYFIELD_EMPTY_CELL " ."
 #+END_SRC
 
 * Structs
@@ -672,51 +646,15 @@ see [[*Init][Init]] and [[*Loop][Loop]]
 
 * Funcs
 
-** Background, foreground, colors, clear screen
-
-#+BEGIN_SRC c :noweb-ref decls
-  void set_fg(int color);
-  void set_bg(int color);
-  void reset_colors();
-  void clear_screen();
-#+END_SRC
-
-#+BEGIN_SRC c :noweb-ref funcs
-  void set_fg(int color) {
-      if (use_color) {
-          printf("\033[3%dm", color);
-      }
-  }
-  void set_bg(int color) {
-      if (use_color) {
-          printf("\033[4%dm", color);
-      }
-  }
-  void reset_colors() {
-      printf("\033[0m");
-  }
-  void clear_screen() {
-      printf("\033[2J");
-  }
-#+END_SRC
-
 ** Printing at position
 
 #+BEGIN_SRC c :noweb-ref decls
   void xyprint(int x, int y, char *s);
-  void set_bold();
-  void unset_bold();
 #+END_SRC
 
 #+BEGIN_SRC c :noweb-ref funcs
   void xyprint(int x, int y, char *s) {
       printf("\033[%d;%dH%s", y, x, s);
-  }
-  void set_bold() {
-      printf("\033[1m");
-  }
-  void unset_bold() {
-      printf("\033[0m");
   }
 #+END_SRC
 
@@ -747,8 +685,6 @@ see [[*Init][Init]] and [[*Loop][Loop]]
       my_exit(EXIT_FAILURE);
   }
   void cmd_quit() {
-      xyprint(GAMEOVER_X, GAMEOVER_Y, "Game over!");
-      xyprint(GAMEOVER_X, GAMEOVER_Y + 1, "");
       my_exit(0);
   }
 #+END_SRC

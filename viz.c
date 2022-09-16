@@ -18,20 +18,6 @@
 #define DELAY 1
 #define DELAY_FACTOR 0.8
 
-#define RED 1
-#define GREEN 2
-#define YELLOW 3
-#define BLUE 4
-#define FUCHSIA 5
-#define CYAN 6
-#define WHITE 7
-
-#define PLAYFIELD_W 10
-#define PLAYFIELD_H 20
-#define PLAYFIELD_X 30
-#define PLAYFIELD_Y 1
-#define BORDER_COLOR YELLOW
-
 #define SCORE_X 1
 #define SCORE_Y 2
 #define SCORE_COLOR GREEN
@@ -39,18 +25,6 @@
 #define HELP_X 58
 #define HELP_Y 1
 #define HELP_COLOR CYAN
-
-#define NEXT_X 14
-#define NEXT_Y 11
-
-#define GAMEOVER_X 1
-#define GAMEOVER_Y (PLAYFIELD_H + 3)
-
-#define LEVEL_UP 20
-
-#define FILLED_CELL "[]"
-#define NEXT_EMPTY_CELL "  "
-#define PLAYFIELD_EMPTY_CELL " ."
 
 /* STRUCTURES */
 struct termios terminal_conf;
@@ -70,13 +44,7 @@ typedef struct {
 } tetris_piece_s;
 
 /* DECLARATIONS */
-void set_fg(int color);
-void set_bg(int color);
-void reset_colors();
-void clear_screen();
 void xyprint(int x, int y, char *s);
-void set_bold();
-void unset_bold();
 void my_exit (int retcode);
 void error_exit(int errsv);
 void cmd_quit();
@@ -95,30 +63,8 @@ char myfifo_ctrl[] = "test-pipe-ctrl";
 int  fdfifo_ctrl = 0;
 
 /* FUNCTIONS */
-void set_fg(int color) {
-    if (use_color) {
-        printf("\033[3%dm", color);
-    }
-}
-void set_bg(int color) {
-    if (use_color) {
-        printf("\033[4%dm", color);
-    }
-}
-void reset_colors() {
-    printf("\033[0m");
-}
-void clear_screen() {
-    printf("\033[2J");
-}
 void xyprint(int x, int y, char *s) {
     printf("\033[%d;%dH%s", y, x, s);
-}
-void set_bold() {
-    printf("\033[1m");
-}
-void unset_bold() {
-    printf("\033[0m");
 }
 void my_exit (int retcode) {
     int flags = fcntl(STDOUT_FILENO, F_GETFL);
@@ -149,8 +95,6 @@ void error_exit(int errsv) {
     my_exit(EXIT_FAILURE);
 }
 void cmd_quit() {
-    xyprint(GAMEOVER_X, GAMEOVER_Y, "Game over!");
-    xyprint(GAMEOVER_X, GAMEOVER_Y + 1, "");
     my_exit(0);
 }
 long get_current_micros() {
@@ -284,7 +228,7 @@ int main(int argc, char* argv[]) {
             char pipe_buf[65535] = {0}; // initialization by zeros
             int pipe_buf_len = read(fdfifo, pipe_buf, sizeof(pipe_buf));
             if (0 > pipe_buf_len) {
-                printf("err: read_and_show_pipe()"); // replace to show_error()
+                printf("err: read_and_show_pipe"); // TODO: replace to show_error()
                 error_exit(errno);
             }
             char tmp[65535] = {0};
@@ -295,7 +239,7 @@ int main(int argc, char* argv[]) {
         if (stdin_flag) {
             int stdi_buf_len = read(STDIN_FILENO, stdi_buf, sizeof(stdi_buf));
             if (0 > stdi_buf_len) {
-                printf("err: read_and_show_stdin()"); // replace to show_error()
+                printf("err: read_and_show_stdin"); // TODO: replace to show_error()
                 error_exit(errno);
             }
             char tmp[1024];
