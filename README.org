@@ -19,57 +19,11 @@ Thus, in the course of work, any script can control the visualization by reading
 
 * Operations
 
-Output to the cursor position is done using escape sequences, so it's enough to open fifo, send a line with the escape sequence into it, and close fifo. For convenience, you can use the following function:
+Output to the cursor position is done using escape sequences, so it's enough to open fifo, send a line with the escape sequence into it, and close fifo.
 
-#+BEGIN_SRC lisp
-  (defmacro with-pipe (pipe-var &body body)
-    `(let ((,pipe-var (open "test-pipe"
-                          :direction :output :if-does-not-exist :error)))
-       (prog1 (progn ,@body)
-         (finish-output ,pipe-var)
-         (close ,pipe-var))))
+To get keystrokes and mouse clicks, you can use reading from fifo, but you need to start reading after starting the program, because when initializing the program, the program reopens the fifo.
 
-  ;; (macroexpand-1 '(with-pipe my-pipe
-  ;;                  (some1) (some2)))
-
-  (defun pipe-xy (x y msg)
-    (with-pipe my-pipe
-      (format my-pipe "~A[~A;~AH~A"
-              (code-char 27) x y msg)))
-
-  ;; (pipe-xy 0 0 "abc")
-#+END_SRC
-
-To get keystrokes and mouse clicks, you can use reading from fifo, but you need to start reading after starting the program, because when initializing the program, the program reopens the fifo. Thus, the sequence of operations is as follows:
-- make run
-- (pipe-get)
-- click and press keys
-
-#+BEGIN_SRC lisp
-#+END_SRC
-
-* Screen functions
-
-#+BEGIN_SRC lisp
-  (defun pipe-cls ()
-    (with-pipe mp
-      (format mp "~A[2J" (code-char 27))))
-  ;; (pipe-cls)
-
-  (defun pipe-msg (fg bg x y msg)
-    (with-pipe mp
-      (format mp "~A[3~Am"    (code-char 27) fg)    ;; foreground
-      (format mp "~A[4~Am"    (code-char 27) bg)    ;; background
-      (format mp "~A[~A;~AH"  (code-char 27) x y)   ;; coords
-      (format mp "~A"         msg)                  ;; msg
-      (format mp "~A[0~Am"    (code-char 27) bg)))  ;; reset colors
-
-  ;; (pipe-msg 3 4 10 10 "abc")
-#+END_SRC
-
-[TODO:gmm] : bold, italic, etc..
-
-* Draw functions
+* Game functions
 
 #+BEGIN_SRC lisp
   (defmacro bprint (var)
@@ -645,7 +599,6 @@ see [[*Init][Init]] and [[*Loop][Loop]]
 #+END_SRC
 
 * Funcs
-
 ** Printing at position
 
 #+BEGIN_SRC c :noweb-ref decls
