@@ -458,7 +458,8 @@ To get keystrokes and mouse clicks, you can use reading from fifo, but you need 
                   (print "enter")
                   (pip
                     (cmd-down *current-piece* *playfield*))))
-               ((equal (subseq par 0 8) "1B.5B.4D")
+               ((and (> (length par) 18)
+                     (equal (subseq par 0 8) "1B.5B.4D"))
                 (let ((btn (subseq par 9 11))
                       (crd (subseq par 12 17)))
                   (format t "~%")
@@ -471,6 +472,15 @@ To get keystrokes and mouse clicks, you can use reading from fifo, but you need 
                         ((equal btn "23")
                          (format t "mouse: no press")))
                   (format t " ~A" crd)))
+               ((equal par "tick")
+                (progn
+                  (print par)
+                  (unless (pip (cmd-down *current-piece* *playfield*))
+                    (pip
+                      (setf *current-piece*
+                            (get-current-piece *next-piece* *playfield*)))
+                    (pip
+                      (setf *next-piece* (get-next-piece *next-visible*))))))
                (t (print par))))))
 
   ;; (defun dbg-show-playfield (playfield)
@@ -1003,7 +1013,7 @@ excludefds), которое может быть равно нулю, если т
               printf("err: read_and_show_stdin"); // TODO: replace to show_error()
               error_exit(errno);
           }
-          char tmp[1024];
+          char tmp[1024]={0};
           int tmp_len =
               sprintf(tmp,
                       "%02X.%02X.%02X.%02X:%02X.%02X.%02X.%02X:%02X.%02X.%02X.%02X:%02X.%02X.%02X.%02X",
@@ -1014,6 +1024,14 @@ excludefds), которое может быть равно нулю, если т
           xyprint(0, 25, tmp);
           /* пишем в отдельный fifo */
           write(fdfifo_ctrl, tmp, tmp_len);
+          write(fdfifo_ctrl, "\n", 1); /* need for line-buferization */
+          fsync(fdfifo_ctrl);
+      }
+
+      if ((!fifo_flag) && (!stdin_flag)) {
+          char tick[1024] = {0};
+          int tick_len = sprintf(tick, "tick");
+          write(fdfifo_ctrl, tick, tick_len);
           write(fdfifo_ctrl, "\n", 1); /* need for line-buferization */
           fsync(fdfifo_ctrl);
       }

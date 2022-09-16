@@ -242,7 +242,7 @@ int main(int argc, char* argv[]) {
                 printf("err: read_and_show_stdin"); // TODO: replace to show_error()
                 error_exit(errno);
             }
-            char tmp[1024];
+            char tmp[1024]={0};
             int tmp_len =
                 sprintf(tmp,
                         "%02X.%02X.%02X.%02X:%02X.%02X.%02X.%02X:%02X.%02X.%02X.%02X:%02X.%02X.%02X.%02X",
@@ -253,6 +253,14 @@ int main(int argc, char* argv[]) {
             xyprint(0, 25, tmp);
             /* пишем в отдельный fifo */
             write(fdfifo_ctrl, tmp, tmp_len);
+            write(fdfifo_ctrl, "\n", 1); /* need for line-buferization */
+            fsync(fdfifo_ctrl);
+        }
+    
+        if ((!fifo_flag) && (!stdin_flag)) {
+            char tick[1024] = {0};
+            int tick_len = sprintf(tick, "tick");
+            write(fdfifo_ctrl, tick, tick_len);
             write(fdfifo_ctrl, "\n", 1); /* need for line-buferization */
             fsync(fdfifo_ctrl);
         }
