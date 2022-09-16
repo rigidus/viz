@@ -185,7 +185,6 @@ int main(int argc, char* argv[]) {
     int i = 0;
     int flags = fcntl(STDOUT_FILENO, F_GETFL);
     long last_down_time = 0;
-    long now = 0;
     /* Run under XTerm only */
     /* or sixel support : https://stackoverflow.com/questions/18379477/how-to-interpret-response-from-vt-100-vt-102-da-request/18380004#18380004 */
     int   xterm = 0;
@@ -248,8 +247,6 @@ int main(int argc, char* argv[]) {
         my_exit(EXIT_FAILURE);
     }
     fdfifo_ctrl = open(myfifo_ctrl, O_RDWR);
-    /* loop */
-    
     char get_key(long delay) {
     
         char stdi_buf[16] = {0};
@@ -283,18 +280,18 @@ int main(int argc, char* argv[]) {
     
         if (fifo_flag) {
             char pipe_buf[65535] = {0}; // initialization by zeros
-            int pipe_buf_len = read(fdfifo, pipe_buf, 65535);
+            int pipe_buf_len = read(fdfifo, pipe_buf, sizeof(pipe_buf));
             if (0 > pipe_buf_len) {
                 printf("err: read_and_show_pipe()"); // replace to show_error()
                 error_exit(errno);
             }
-            char tmp[65535] = {};
+            char tmp[65535] = {0};
             sprintf(tmp, "%s", pipe_buf);
-            xyprint(0, 29, tmp); /* dbgout */
+            xyprint(0, 29, tmp);
         }
     
         if (stdin_flag) {
-            int stdi_buf_len = read(STDIN_FILENO, stdi_buf, 16);
+            int stdi_buf_len = read(STDIN_FILENO, stdi_buf, sizeof(stdi_buf));
             if (0 > stdi_buf_len) {
                 printf("err: read_and_show_stdin()"); // replace to show_error()
                 error_exit(errno);
@@ -317,9 +314,9 @@ int main(int argc, char* argv[]) {
         return stdi_buf[0];
     }
     
+    /* loop */
     while(1) {
-        now = get_current_micros();
-        c = get_key(last_down_time + tetris_delay - now);
+        c = get_key(last_down_time + tetris_delay - get_current_micros());
         key[2] = key[1];
         key[1] = key[0];
         if (key[2] == ESC && key[1] == '[') {
