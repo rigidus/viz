@@ -1195,54 +1195,8 @@ A good strategy for an application would be to enable mouse reporting, then (opt
   /* loop */
 
   char get_key(long delay) {
-      /* /\* Если буфер не пуст - продолжаем возвращать из него, *\/ */
-      /* /\* без ожидания, пока не опустошим *\/ */
-      /* if (buf_len > 0 && buf_pos < buf_len) { */
-      /*     return buf[buf_pos++]; */
-      /* } */
 
-      /* эти переменные используются во вложенных функциях */
-      char buf[16] = {};
-      static int buf_len = 0;
-      static int buf_pos = 0;
-
-      /* здесь буфер пуст, поэтому обнуляем его к исходному */
-      buf_len = 0;
-      buf_pos = 0;
-
-      /* вложеная функция чтения из пайпа */
-      void read_and_show_pipe () {
-          char pipe_buf[65535] = {0}; // initialization by zeros
-          int pipe_buf_len = read(fdfifo, pipe_buf, 65535);
-          if (0 > pipe_buf_len) {
-              error_exit(errno);
-          }
-          char tmp[65535];
-          sprintf(tmp, "%s", pipe_buf);
-          xyprint(0, 29, tmp);
-      }
-
-      /* вложенная функция чтения из stdin */
-      void read_and_show_stdin () {
-          buf_len = read(STDIN_FILENO, buf, 16);
-          if (0 > buf_len) {
-              error_exit(errno);
-          }
-          char tmp[80];
-          int tmp_len =
-              sprintf(tmp,
-                      "%02X.%02X.%02X.%02X:%02X.%02X.%02X.%02X:%02X.%02X.%02X.%02X:%02X.%02X.%02X.%02X",
-                      buf[0], buf[1], buf[2], buf[3], buf[4], buf[5],
-                      buf[6], buf[7], buf[8], buf[9], buf[10], buf[11],
-                      buf[12], buf[13], buf[14], buf[15]);
-          xyprint(0, 25, tmp);
-          /* пишем в отдельный fifo */
-          write(fdfifo_ctrl, tmp, tmp_len);
-          write(fdfifo_ctrl, "\n", 1); /* need for line-buferization */
-          fsync(fdfifo_ctrl);
-      }
-
-
+      char stdi_buf[16] = {0};
 
       /* DELAY */
 
@@ -1271,47 +1225,40 @@ A good strategy for an application would be to enable mouse reporting, then (opt
 
       /* DELAY END */
 
-      if (stdin_flag) {
-          xyprint(SCORE_X, SCORE_Y + 3, "stdin_flag");
-      } else {
-          xyprint(SCORE_X, SCORE_Y + 3, "          ");
-      }
-
       if (fifo_flag) {
-          xyprint(SCORE_X+12, SCORE_Y + 3, "fifo_flag");
-      } else {
-          xyprint(SCORE_X+12, SCORE_Y + 3, "         ");
+          char pipe_buf[65535] = {0}; // initialization by zeros
+          int pipe_buf_len = read(fdfifo, pipe_buf, 65535);
+          if (0 > pipe_buf_len) {
+              printf("err: read_and_show_pipe()"); // replace to show_error()
+              error_exit(errno);
+          }
+          char tmp[65535] = {};
+          sprintf(tmp, "%s", pipe_buf);
+          xyprint(0, 29, tmp); /* dbgout */
       }
 
-      if (!fifo_flag && !stdin_flag) {
-          /* таймаут, вернем ноль */
-          xyprint(SCORE_X, SCORE_Y + 4, "status: timeout");
-          return 0;
-      } else if (fifo_flag && !stdin_flag) {
-          /* что-то пришло в пайп, а stdin пустой */
-          /* прочтем и отобразим содержимое пайпа и вернем ноль */
-          xyprint(SCORE_X, SCORE_Y + 4, "status: pipe   ");
-          read_and_show_pipe();
-          return 0;
-      } else if (!fifo_flag && stdin_flag) {
-          /* что-то пришло в stdin, а пайп пустой */
-          /* прочтем в буфер и вернем первый символ */
-          xyprint(SCORE_X, SCORE_Y + 4, "status: stdin  ");
-          read_and_show_stdin();
-          return buf[buf_pos++];
-      } else if (fifo_flag && stdin_flag){
-          /* одновременно есть что-то и в stdin и в пайпе */
-          /* читаем и отображаем все и возвращаем первый символ */
-          xyprint(SCORE_X, SCORE_Y + 4, "status: both   ");
-          read_and_show_pipe();
-          read_and_show_stdin();
-          return buf[buf_pos++];
+      if (stdin_flag) {
+          int stdi_buf_len = read(STDIN_FILENO, stdi_buf, 16);
+          if (0 > stdi_buf_len) {
+              printf("err: read_and_show_stdin()"); // replace to show_error()
+              error_exit(errno);
+          }
+          char tmp[1024];
+          int tmp_len =
+              sprintf(tmp,
+                      "%02X.%02X.%02X.%02X:%02X.%02X.%02X.%02X:%02X.%02X.%02X.%02X:%02X.%02X.%02X.%02X",
+                      stdi_buf[0], stdi_buf[1], stdi_buf[2], stdi_buf[3], stdi_buf[4],
+                      stdi_buf[5], stdi_buf[6], stdi_buf[7], stdi_buf[8], stdi_buf[9],
+                      stdi_buf[10], stdi_buf[11], stdi_buf[12], stdi_buf[13],
+                      stdi_buf[14], stdi_buf[15]);
+          xyprint(0, 25, tmp);
+          /* пишем в отдельный fifo */
+          write(fdfifo_ctrl, tmp, tmp_len);
+          write(fdfifo_ctrl, "\n", 1); /* need for line-buferization */
+          fsync(fdfifo_ctrl);
       }
 
-      /* тут мы не должны оказаться ни при каких обстоятельствах */
-      xyprint(SCORE_X, SCORE_Y + 4, "status: pipets");
-      error_exit(errno);
-      return 0;
+      return stdi_buf[0];
   }
 
   while(1) {
