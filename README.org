@@ -1063,7 +1063,9 @@ excludefds), которое может быть равно нулю, если т
 
 #+NAME: loop
 #+BEGIN_SRC c
-  char get_key(long delay) {
+  /* loop */
+  while(1) {
+      long delay = last_down_time + tetris_delay - get_current_micros();
 
       char stdi_buf[16] = {0};
 
@@ -1098,7 +1100,7 @@ excludefds), которое может быть равно нулю, если т
           char pipe_buf[65535] = {0}; // initialization by zeros
           int pipe_buf_len = read(fdfifo, pipe_buf, sizeof(pipe_buf));
           if (0 > pipe_buf_len) {
-              printf("err: read_and_show_pipe()"); // replace to show_error()
+              printf("err: read_and_show_pipe"); // TODO: replace to show_error()
               error_exit(errno);
           }
           char tmp[65535] = {0};
@@ -1109,7 +1111,7 @@ excludefds), которое может быть равно нулю, если т
       if (stdin_flag) {
           int stdi_buf_len = read(STDIN_FILENO, stdi_buf, sizeof(stdi_buf));
           if (0 > stdi_buf_len) {
-              printf("err: read_and_show_stdin()"); // replace to show_error()
+              printf("err: read_and_show_stdin"); // TODO: replace to show_error()
               error_exit(errno);
           }
           char tmp[1024];
@@ -1127,12 +1129,9 @@ excludefds), которое может быть равно нулю, если т
           fsync(fdfifo_ctrl);
       }
 
-      return stdi_buf[0];
-  }
+      // -------------
 
-  /* loop */
-  while(1) {
-      c = get_key(last_down_time + tetris_delay - get_current_micros());
+      c = stdi_buf[0];
       key[2] = key[1];
       key[1] = key[0];
       if (key[2] == ESC && key[1] == '[') {

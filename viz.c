@@ -247,7 +247,9 @@ int main(int argc, char* argv[]) {
         my_exit(EXIT_FAILURE);
     }
     fdfifo_ctrl = open(myfifo_ctrl, O_RDWR);
-    char get_key(long delay) {
+    /* loop */
+    while(1) {
+        long delay = last_down_time + tetris_delay - get_current_micros();
     
         char stdi_buf[16] = {0};
     
@@ -311,12 +313,9 @@ int main(int argc, char* argv[]) {
             fsync(fdfifo_ctrl);
         }
     
-        return stdi_buf[0];
-    }
+        // -------------
     
-    /* loop */
-    while(1) {
-        c = get_key(last_down_time + tetris_delay - get_current_micros());
+        c = stdi_buf[0];
         key[2] = key[1];
         key[1] = key[0];
         if (key[2] == ESC && key[1] == '[') {
