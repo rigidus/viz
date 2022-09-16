@@ -504,8 +504,20 @@ To get keystrokes and mouse clicks, you can use reading from fifo, but you need 
                   (print "enter")
                   (pip
                     (cmd-down *current-piece* *playfield*))))
+               ((equal (subseq par 0 8) "1B.5B.4D")
+                (let ((btn (subseq par 9 11))
+                      (crd (subseq par 12 17)))
+                  (format t "~%")
+                  (cond ((equal btn "20")
+                         (format t "mouse: left press"))
+                        ((equal btn "21")
+                         (format t "mouse: middle press"))
+                        ((equal btn "22")
+                         (format t "mouse: right press"))
+                        ((equal btn "23")
+                         (format t "mouse: no press")))
+                  (format t " ~A" crd)))
                (t (print par))))))
-
 
   ;; (defun dbg-show-playfield (playfield)
   ;;   (format t "~%")
