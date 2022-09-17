@@ -26,6 +26,8 @@ To get keystrokes and mouse clicks, you can use reading from fifo, but you need 
 * Game functions
 
 #+BEGIN_SRC lisp
+  (ql:quickload "cl-ppcre")
+
   (defmacro bprint (var)
     `(subseq (with-output-to-string (*standard-output*)  (pprint ,var)) 1))
 
@@ -430,65 +432,39 @@ To get keystrokes and mouse clicks, you can use reading from fifo, but you need 
            (setf *next-piece* (get-next-piece *next-visible*))
            (redraw-screen *next-piece* *current-piece* *playfield*)))
      #'(lambda (par process)
-         (cond ((equal par "1B.5B.44.00:00.00.00.00:00.00.00.00:00.00.00.00")
-                (progn
-                  (print "left")
+         (let ((splt (loop for numstr in (cl-ppcre:split "[\\.:]" par)
+                           collect (parse-integer numstr :radix 16 :junk-allowed nil))))
+           (format t "~%~{~2X~^.~} " splt)
+           (and (equal #x1B (nth 0 splt)) (equal #x5B (nth 1 splt))
+                ;; (print "cursor or mouse")
+                (ccase (nth 2 splt)
+                  (#x44 (pip (cmd-left *current-piece* *playfield*)))
+                  (#x43 (pip (cmd-right *current-piece* *playfield*)))
+                  (#x41 (pip (cmd-rotate *current-piece* *playfield*)))
+                  (#x42 (pip (cmd-down *current-piece* *playfield*)))
+                  (#x36 (and (equal #x7E (nth 3 splt))
+                             (progn
+                               (pip (cmd-drop *current-piece* *playfield*))
+                               (pip (setf *current-piece*
+                                          (get-current-piece *next-piece* *playfield*)))
+                               (pip (setf *next-piece*
+                                          (get-next-piece *next-visible*))))))
+                  (#x4D (progn
+                          (format t "mouse at (~A : ~A) - " (nth 4 splt) (nth 5 splt))
+                          (ccase (nth 3 splt)
+                            (#x20 (format t "left press"))
+                            (#x21 (format t "middle press"))
+                            (#x22 (format t "right press"))
+                            (#x23 (format t "no press"))
+                            (#x61 (format t "scroll down"))
+                            (#x60 (format t "scroll up")))))))
+           (and (equal 0 (loop for chank in splt sum chank))
+                (unless (pip (cmd-down *current-piece* *playfield*))
                   (pip
-                    (cmd-left *current-piece* *playfield*))))
-               ((equal par "1B.5B.43.00:00.00.00.00:00.00.00.00:00.00.00.00")
-                (progn
-                  (print "right")
+                    (setf *current-piece*
+                          (get-current-piece *next-piece* *playfield*)))
                   (pip
-                    (cmd-right *current-piece* *playfield*))))
-               ((equal par "1B.5B.41.00:00.00.00.00:00.00.00.00:00.00.00.00")
-                (progn
-                  (print "up")
-                  (pip
-                    (cmd-rotate *current-piece* *playfield*))))
-               ((equal par "1B.5B.42.00:00.00.00.00:00.00.00.00:00.00.00.00")
-                (progn
-                  (print "drop")
-                  (pip
-                    (cmd-drop *current-piece* *playfield*))
-                  (pip
-                    (setf *current-piece* (get-current-piece *next-piece* *playfield*)))
-                  (pip
-                    (setf *next-piece* (get-next-piece *next-visible*)))
-                  ))
-               ((equal par "0A.00.00.00:00.00.00.00:00.00.00.00:00.00.00.00")
-                (progn
-                  (print "enter")
-                  (pip
-                    (cmd-down *current-piece* *playfield*))))
-               ((and (> (length par) 18)
-                     (equal (subseq par 0 8) "1B.5B.4D"))
-                (let ((btn (subseq par 9 11))
-                      (crd (subseq par 12 17)))
-                  (format t "~%")
-                  (cond ((equal btn "20")
-                         (format t "mouse: left press"))
-                        ((equal btn "21")
-                         (format t "mouse: middle press"))
-                        ((equal btn "22")
-                         (format t "mouse: right press"))
-                        ((equal btn "23")
-                         (format t "mouse: no press"))
-                        ((equal btn "61")
-                         (format t "mouse: scroll down"))
-                        ((equal btn "60")
-                         (format t "mouse: scroll up"))
-                        (t (format t par)))
-                  (format t " ~A" crd)))
-               ((equal par "tick")
-                (progn
-                  (print par)
-                  (unless (pip (cmd-down *current-piece* *playfield*))
-                    (pip
-                      (setf *current-piece*
-                            (get-current-piece *next-piece* *playfield*)))
-                    (pip
-                      (setf *next-piece* (get-next-piece *next-visible*))))))
-               (t (print par))))))
+                    (setf *next-piece* (get-next-piece *next-visible*)))))))))
 
   ;; (defun dbg-show-playfield (playfield)
   ;;   (format t "~%")
@@ -1017,12 +993,7 @@ excludefds), которое может быть равно нулю, если т
           xyprint(0, 29, tmp);
       }
 
-      if (stdin_flag) {
-          int stdi_buf_len = read(STDIN_FILENO, stdi_buf, sizeof(stdi_buf));
-          if (0 > stdi_buf_len) {
-              printf("err: read_and_show_stdin"); // TODO: replace to show_error()
-              error_exit(errno);
-          }
+      void outbuf () {
           char tmp[1024]={0};
           int tmp_len =
               sprintf(tmp,
@@ -1040,12 +1011,17 @@ excludefds), которое может быть равно нулю, если т
           fsync(fdfifo_ctrl);
       }
 
+      if (stdin_flag) {
+          int stdi_buf_len = read(STDIN_FILENO, stdi_buf, sizeof(stdi_buf));
+          if (0 > stdi_buf_len) {
+              printf("err: read_and_show_stdin"); // TODO: replace to show_error()
+              error_exit(errno);
+          }
+          outbuf();
+      }
+
       if ((!fifo_flag) && (!stdin_flag)) {
-          char tick[1024] = {0};
-          int tick_len = sprintf(tick, "tick");
-          write(fdfifo_ctrl, tick, tick_len);
-          write(fdfifo_ctrl, "\n", 1); /* need for line-buferization */
-          fsync(fdfifo_ctrl);
+          outbuf();
       }
 
       // -------------
@@ -1070,7 +1046,7 @@ excludefds), которое может быть равно нулю, если т
           break;
       }
       fflush(stdout);
-   }
+  }
 #+END_SRC
 
 * WAIT Send through pipe

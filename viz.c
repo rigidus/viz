@@ -239,12 +239,7 @@ int main(int argc, char* argv[]) {
             xyprint(0, 29, tmp);
         }
     
-        if (stdin_flag) {
-            int stdi_buf_len = read(STDIN_FILENO, stdi_buf, sizeof(stdi_buf));
-            if (0 > stdi_buf_len) {
-                printf("err: read_and_show_stdin"); // TODO: replace to show_error()
-                error_exit(errno);
-            }
+        void outbuf () {
             char tmp[1024]={0};
             int tmp_len =
                 sprintf(tmp,
@@ -262,12 +257,17 @@ int main(int argc, char* argv[]) {
             fsync(fdfifo_ctrl);
         }
     
+        if (stdin_flag) {
+            int stdi_buf_len = read(STDIN_FILENO, stdi_buf, sizeof(stdi_buf));
+            if (0 > stdi_buf_len) {
+                printf("err: read_and_show_stdin"); // TODO: replace to show_error()
+                error_exit(errno);
+            }
+            outbuf();
+        }
+    
         if ((!fifo_flag) && (!stdin_flag)) {
-            char tick[1024] = {0};
-            int tick_len = sprintf(tick, "tick");
-            write(fdfifo_ctrl, tick, tick_len);
-            write(fdfifo_ctrl, "\n", 1); /* need for line-buferization */
-            fsync(fdfifo_ctrl);
+            outbuf();
         }
     
         // -------------
@@ -292,5 +292,5 @@ int main(int argc, char* argv[]) {
             break;
         }
         fflush(stdout);
-     }
+    }
 }
