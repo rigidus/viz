@@ -297,7 +297,7 @@ To get keystrokes and mouse clicks, you can use reading from fifo, but you need 
               (yy (+ (aref cells (+ 1 (* 2 idx)))  (tetpi-origin-y piece))))
           (xyprint xx yy (if visible
                              +FILLED-CELL+
-                             +PLAYFIELD-EMPTY-CELL+))))
+                             (tetpi-empty-cell piece)))))
       (when visible
         (reset-colors))))
 
