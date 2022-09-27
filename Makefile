@@ -3,7 +3,7 @@ SHELL = /bin/sh
 all: compile
 
 compile:
-	gcc viz.c
+	gcc viz.c -o ./rndr
 
 run:
-	xterm -e ./a.out
+	xterm -e ./rndr
